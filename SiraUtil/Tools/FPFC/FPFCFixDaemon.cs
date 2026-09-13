@@ -12,7 +12,6 @@ namespace SiraUtil.Tools.FPFC
             _fpfcSettings = fpfcSettings;
         }
 
-        [AffinityPatch(typeof(OculusVRHelper), nameof(OculusVRHelper.hasInputFocus), AffinityMethodType.Getter)]
         [AffinityPatch(typeof(UnityXRHelper), nameof(UnityXRHelper.hasInputFocus), AffinityMethodType.Getter)]
         protected void ForceInputFocus(ref bool __result)
         {

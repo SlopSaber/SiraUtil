@@ -16,32 +16,6 @@ namespace SiraUtil.Sabers.Effects
         private static readonly FieldInfo _sabersInfo = typeof(SaberBurnMarkArea).GetField(nameof(SaberBurnMarkArea._sabers), BindingFlags.NonPublic | BindingFlags.Instance);
         private static readonly MethodInfo _rendererGetEnabled = typeof(Renderer).GetProperty(nameof(Renderer.enabled), BindingFlags.Public | BindingFlags.Instance).GetMethod;
 
-        [HarmonyPostfix]
-        [HarmonyPatch(nameof(SaberBurnMarkArea.OnEnable))]
-        internal static void DynamicEnable(ref LineRenderer[] ____lineRenderers)
-        {
-            if (____lineRenderers is not null && ____lineRenderers.Length > 2)
-            {
-                for (int i = 2; i < ____lineRenderers.Length; i++)
-                {
-                    ____lineRenderers[i].gameObject.SetActive(true);
-                }
-            }
-        }
-
-        [HarmonyPostfix]
-        [HarmonyPatch(nameof(SaberBurnMarkArea.OnDisable))]
-        internal static void DynamicDisable(ref LineRenderer[] ____lineRenderers)
-        {
-            if (____lineRenderers is not null && ____lineRenderers.Length > 2)
-            {
-                for (int i = 2; i < ____lineRenderers.Length; i++)
-                {
-                    ____lineRenderers[i].gameObject.SetActive(false);
-                }
-            }
-        }
-
         [HarmonyTranspiler]
         [HarmonyPatch(nameof(SaberBurnMarkArea.LateUpdate))]
         internal static IEnumerable<CodeInstruction> DynamicUpdate(IEnumerable<CodeInstruction> instructions)

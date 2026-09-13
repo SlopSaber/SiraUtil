@@ -140,11 +140,6 @@ namespace SiraUtil.Tools.FPFC
             SetControllerEnabled(_menuControllerAccessor.LeftController, false);
             SetControllerEnabled(_menuControllerAccessor.RightController, false);
 
-            if (_pauseController != null)
-            {
-                _pauseController.ignoreHMDUUnmountEvets = true;
-            }
-
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
 
@@ -163,11 +158,6 @@ namespace SiraUtil.Tools.FPFC
 
             SetControllerEnabled(_menuControllerAccessor.LeftController, true);
             SetControllerEnabled(_menuControllerAccessor.RightController, true);
-
-            if (_pauseController != null)
-            {
-                _pauseController.ignoreHMDUUnmountEvets = false;
-            }
 
             if (!_fpfcSettings.LockViewOnDisable)
             {

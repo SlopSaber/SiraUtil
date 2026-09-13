@@ -19,7 +19,6 @@ namespace SiraUtil.Installers
             Container.BindInterfacesAndSelfTo<SaberModelProvider>().AsSingle();
             Container.BindInterfacesAndSelfTo<SaberModelManager>().AsSingle();
             Container.BindInterfacesTo<SaberClashEffectAdjuster>().AsSingle();
-            Container.BindInterfacesTo<SaberBurnMarkAreaLatch>().AsSingle();
             Container.Bind<SiraSaberFactory>().AsSingle();
         }
     }

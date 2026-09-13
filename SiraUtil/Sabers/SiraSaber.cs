@@ -67,7 +67,7 @@ namespace SiraUtil.Sabers
 
             _saberTypeObject._saberType = saberType;
             Model = _saberModelProvider.NewModel(saberType);
-            Model.Init(transform, Saber, _saberModelContainerInitData.trailTintColor);
+            Model.Init(transform, Saber, _saberModelContainerInitData.trailTintColor, gameObject.name);
             _constructedThisFrame = true;
         }
 
@@ -81,7 +81,6 @@ namespace SiraUtil.Sabers
                 Transform bottomTransform = saber._saberBladeBottomTransform;
                 Vector3 topPosition = saber._saberBladeTopPos = topTransform.position;
                 Vector3 bottomPosition = saber._saberBladeBottomPos = bottomTransform.position;
-                Saber.movementDataForLogic.AddNewData(topPosition, bottomPosition, _timeHelper.Time);
                 _noteCutter.Cut(Saber);
             }
 
