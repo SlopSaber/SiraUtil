@@ -40,7 +40,9 @@ namespace SiraUtil.Web.SiraSync.Implementations
             {
                 string tagName = release.TagName?.Trim() ?? string.Empty;
                 if (tagName.StartsWith("v", StringComparison.OrdinalIgnoreCase))
-                    tagName = tagName.Substring(1);
+                {
+                    tagName = tagName[1..];
+                }
 
                 return Version.Parse(tagName);
             }

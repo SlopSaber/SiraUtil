@@ -23,7 +23,6 @@ namespace SiraUtil.Sabers
         private SaberTypeObject _saberTypeObject = null!;
         private SaberModelProvider _saberModelProvider = null!;
         private SaberModelContainer.InitData _saberModelContainerInitData = new();
-        private TimeHelper _timeHelper = null!;
         private readonly Queue<Action> _colorProcessNextFrame = new();
         private bool _constructedThisFrame = false;
 
@@ -32,13 +31,11 @@ namespace SiraUtil.Sabers
             NoteCutter noteCutter,
             ColorManager colorManager,
             SaberModelProvider saberModelProvider,
-            [InjectOptional] SaberModelContainer.InitData saberModelContainerInitData,
-            TimeHelper timeHelper)
+            [InjectOptional] SaberModelContainer.InitData saberModelContainerInitData)
         {
             _noteCutter = noteCutter;
             _colorManager = colorManager;
             _saberModelProvider = saberModelProvider;
-            _timeHelper = timeHelper;
 
             if (saberModelContainerInitData != null)
             {
@@ -79,8 +76,8 @@ namespace SiraUtil.Sabers
                 Saber saber = Saber;
                 Transform topTransform = saber._saberBladeTopTransform;
                 Transform bottomTransform = saber._saberBladeBottomTransform;
-                Vector3 topPosition = saber._saberBladeTopPos = topTransform.position;
-                Vector3 bottomPosition = saber._saberBladeBottomPos = bottomTransform.position;
+                saber._saberBladeTopPos = topTransform.position;
+                saber._saberBladeBottomPos = bottomTransform.position;
                 _noteCutter.Cut(Saber);
             }
 

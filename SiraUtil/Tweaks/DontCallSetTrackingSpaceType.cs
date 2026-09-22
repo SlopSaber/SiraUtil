@@ -9,6 +9,8 @@ namespace SiraUtil.Tweaks
     [HarmonyPatch(typeof(SettingsApplicatorSO), nameof(SettingsApplicatorSO.ApplyGraphicSettings))]
     internal class DontCallSetTrackingSpaceType
     {
+        // The game still calls this obsolete API; this patch must identify that exact call to remove it.
+#pragma warning disable CS0618
         private static readonly MethodInfo XRDeviceSetTrackingSpaceTypeMethod = AccessTools.DeclaredMethod(typeof(XRDevice), nameof(XRDevice.SetTrackingSpaceType));
 
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -20,4 +22,5 @@ namespace SiraUtil.Tweaks
                 .InstructionEnumeration();
         }
     }
+#pragma warning restore CS0618
 }
