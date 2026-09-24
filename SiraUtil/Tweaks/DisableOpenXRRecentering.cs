@@ -1,5 +1,6 @@
 ﻿using HarmonyLib;
-using System.Threading.Tasks;
+using System.Collections;
+using UnityEngine;
 using UnityEngine.XR.Management;
 using UnityEngine.XR.OpenXR;
 using Zenject;
@@ -21,30 +22,43 @@ namespace SiraUtil.Tweaks
 
         [HarmonyPatch(typeof(SceneContext), nameof(SceneContext.Awake))]
         [HarmonyPostfix]
-        internal static async void RestartXRLoaderIfNecessary()
+        internal static void RestartXRLoaderIfNecessary(SceneContext __instance)
         {
             if (XRGeneralSettings.Instance.Manager.activeLoader is not OpenXRLoaderBase || !ShouldDisableRecentering)
             {
                 return;
             }
 
-            Plugin.Log.Notice("Restarting XR loader");
+            __instance.StartCoroutine(RestartXRLoaderAfterSceneStart());
+        }
+
+        private static IEnumerator RestartXRLoaderAfterSceneStart()
+        {
+            // SceneContext.Awake runs before Start; manual XR initialization must wait until graphics startup finishes.
+            yield return new WaitForEndOfFrame();
 
             XRManagerSettings manager = XRGeneralSettings.Instance.Manager;
+            if (manager.activeLoader is not OpenXRLoaderBase || !ShouldDisableRecentering)
+            {
+                yield break;
+            }
+
+            Plugin.Log.Notice("Restarting XR loader after scene startup");
 
             if (manager.activeLoader != null)
             {
                 Plugin.Log.Info($"Deinitializing XR loader '{manager.activeLoader.name}'");
+                manager.StopSubsystems();
                 manager.DeinitializeLoader();
-
-                await Task.Yield();
             }
 
-            manager.InitializeLoaderSync();
-            manager.StartSubsystems();
+            // Allow the old XR frame to finish before initializing a replacement display subsystem.
+            yield return new WaitForEndOfFrame();
+            yield return manager.InitializeLoader();
 
             if (manager.activeLoader != null)
             {
+                manager.StartSubsystems();
                 Plugin.Log.Info($"Initialized XR loader '{manager.activeLoader.name}'");
             }
             else
