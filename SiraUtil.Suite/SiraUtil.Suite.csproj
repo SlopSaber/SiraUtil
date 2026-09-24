@@ -13,6 +13,8 @@
         <Copyright>Copyright © Auros 2021</Copyright>
         <AssemblyName>SiraUtil.Suite</AssemblyName>
         <RootNamespace>SiraUtil.Suite</RootNamespace>
+        <DisableCopyToPlugins>True</DisableCopyToPlugins>
+        <DisableZipRelease>True</DisableZipRelease>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     </PropertyGroup>
 
