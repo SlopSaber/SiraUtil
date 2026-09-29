@@ -1,10 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <BeatSaberDir>D:\BSManager\BSInstances\1.45.1</BeatSaberDir>
+        <BeatSaberDir>D:\BSManager\BSInstances\1.45.2</BeatSaberDir>
         <ImportBSMTTargets>true</ImportBSMTTargets>
         <BSMTProjectType>BSIPA</BSMTProjectType>
-        <GameDirectory>D:\BSManager\BSInstances\1.45.1</GameDirectory>
+        <GameDirectory>D:\BSManager\BSInstances\1.45.2</GameDirectory>
         <GenerateManifest>true</GenerateManifest>
         <PluginId>SiraUtil</PluginId>
         <PluginName>SiraUtil</PluginName>
@@ -34,7 +34,7 @@
         <Authors>Auros</Authors>
         <Version>3.4.0</Version>
         <Description>A powerful utility mod which provides more tools to Beat Saber modders.</Description>
-        <GameVersion>1.45.1</GameVersion>
+        <GameVersion>1.45.2</GameVersion>
         <Icon>SiraUtil.Resources.logo.png</Icon>
     </PropertyGroup>
 
