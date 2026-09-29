@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SpatialTracking;
+using VRUIControls;
 using Zenject;
 using Object = UnityEngine.Object;
 
@@ -26,6 +27,7 @@ namespace SiraUtil.Tools.FPFC
         private readonly MainCamera _mainCamera;
         private readonly IFPFCSettings _fpfcSettings;
         private readonly List<IFPFCListener> _fpfcListeners;
+        private readonly List<(MeshRenderer Renderer, bool WasEnabled)> _hiddenLaserPointers = [];
         private readonly IMenuControllerAccessor _menuControllerAccessor;
         private readonly PauseController? _pauseController;
 
@@ -75,6 +77,7 @@ namespace SiraUtil.Tools.FPFC
         public void Dispose()
         {
             _fpfcSettings.PropertyChanged -= FPFCSettings_PropertyChanged;
+            RestoreLaserPointers();
 
             if (_simpleCameraController != null)
             {
@@ -139,6 +142,8 @@ namespace SiraUtil.Tools.FPFC
 
             SetControllerEnabled(_menuControllerAccessor.LeftController, false);
             SetControllerEnabled(_menuControllerAccessor.RightController, false);
+            HideLaserPointers(_menuControllerAccessor.LeftController);
+            HideLaserPointers(_menuControllerAccessor.RightController);
 
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
@@ -155,6 +160,7 @@ namespace SiraUtil.Tools.FPFC
         private void DisableFPFC()
         {
             _simpleCameraController.enabled = false;
+            RestoreLaserPointers();
 
             SetControllerEnabled(_menuControllerAccessor.LeftController, true);
             SetControllerEnabled(_menuControllerAccessor.RightController, true);
@@ -195,6 +201,34 @@ namespace SiraUtil.Tools.FPFC
         {
             _menuControllerAccessor.LeftController.transform.SetPositionAndRotation(position, rotation);
             _menuControllerAccessor.RightController.transform.SetPositionAndRotation(position, rotation);
+        }
+
+        private void HideLaserPointers(VRController controller)
+        {
+            foreach (VRLaserPointer laserPointer in controller.viewAnchorTransform.GetComponentsInChildren<VRLaserPointer>(true))
+            {
+                MeshRenderer renderer = laserPointer.GetComponent<MeshRenderer>();
+                if (renderer == null || _hiddenLaserPointers.Exists(pointer => pointer.Renderer == renderer))
+                {
+                    continue;
+                }
+
+                _hiddenLaserPointers.Add((renderer, renderer.enabled));
+                renderer.enabled = false;
+            }
+        }
+
+        private void RestoreLaserPointers()
+        {
+            foreach ((MeshRenderer renderer, bool wasEnabled) in _hiddenLaserPointers)
+            {
+                if (renderer != null)
+                {
+                    renderer.enabled = wasEnabled;
+                }
+            }
+
+            _hiddenLaserPointers.Clear();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
