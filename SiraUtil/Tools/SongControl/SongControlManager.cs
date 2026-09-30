@@ -7,15 +7,24 @@ namespace SiraUtil.Tools.SongControl
     {
         private readonly ISongControl _songControl;
         private readonly SongControlOptions _songControlOptions;
+        private readonly GameScenesManager _gameScenesManager;
 
-        public SongControlManager(ISongControl songControl, SongControlOptions songControlOptions)
+        public SongControlManager(ISongControl songControl, SongControlOptions songControlOptions, GameScenesManager gameScenesManager)
         {
             _songControl = songControl;
             _songControlOptions = songControlOptions;
+            _gameScenesManager = gameScenesManager;
         }
 
         public void Tick()
         {
+            // Gameplay ticks can start before scene loading finishes. A premature
+            // quit publishes finish results even though the game rejects the scene pop.
+            if (_gameScenesManager.isInTransition)
+            {
+                return;
+            }
+
             if (Input.GetKeyDown(_songControlOptions.ExitKeyCode))
             {
                 _songControl.Quit();
