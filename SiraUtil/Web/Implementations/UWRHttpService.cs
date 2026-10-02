@@ -135,13 +135,11 @@ namespace SiraUtil.Web.Implementations
                 withHeaders.Add("Content-Type", "application/json");
             }
             // Custom header enumerators can submit nested requests before native kickoff.
-            if (withHeaders is not null && withHeaders.GetType() != typeof(Dictionary<string, string>))
-            {
-                return SendRawCoreAsync(method, url, body is null ? null : Encoding.UTF8.GetBytes(body), withHeaders, downloadProgress, cancellationToken);
-            }
-            return body is null
-                ? SendRawAsync(method, url, null, withHeaders, downloadProgress, cancellationToken)
-                : SendEncodedAsync(method, url, body, withHeaders, downloadProgress, cancellationToken, null);
+            return withHeaders is not null && withHeaders.GetType() != typeof(Dictionary<string, string>)
+                ? SendRawCoreAsync(method, url, body is null ? null : Encoding.UTF8.GetBytes(body), withHeaders, downloadProgress, cancellationToken)
+                : body is null
+                    ? SendRawAsync(method, url, null, withHeaders, downloadProgress, cancellationToken)
+                    : SendEncodedAsync(method, url, body, withHeaders, downloadProgress, cancellationToken, null);
         }
 
         public Task<IHttpResponse> SendAsync(HTTPMethod method, string url, int timeout, string? body = null, IDictionary<string, string>? withHeaders = null, IProgress<float>? downloadProgress = null, CancellationToken? cancellationToken = null)
@@ -151,13 +149,11 @@ namespace SiraUtil.Web.Implementations
                 withHeaders ??= new Dictionary<string, string>();
                 withHeaders.Add("Content-Type", "application/json");
             }
-            if (withHeaders is not null && withHeaders.GetType() != typeof(Dictionary<string, string>))
-            {
-                return SendRawCoreAsync(method, url, body is null ? null : Encoding.UTF8.GetBytes(body), withHeaders, downloadProgress, cancellationToken, timeout);
-            }
-            return body is null
-                ? SendRawAsync(method, url, null, withHeaders, downloadProgress, cancellationToken, timeout)
-                : SendEncodedAsync(method, url, body, withHeaders, downloadProgress, cancellationToken, timeout);
+            return withHeaders is not null && withHeaders.GetType() != typeof(Dictionary<string, string>)
+                ? SendRawCoreAsync(method, url, body is null ? null : Encoding.UTF8.GetBytes(body), withHeaders, downloadProgress, cancellationToken, timeout)
+                : body is null
+                    ? SendRawAsync(method, url, null, withHeaders, downloadProgress, cancellationToken, timeout)
+                    : SendEncodedAsync(method, url, body, withHeaders, downloadProgress, cancellationToken, timeout);
         }
 
         public Task<IHttpResponse> SendRawAsync(HTTPMethod method, string url, byte[]? body = null, IDictionary<string, string>? withHeaders = null, IProgress<float>? downloadProgress = null, CancellationToken? cancellationToken = null, int? timeout = null)
@@ -194,7 +190,7 @@ namespace SiraUtil.Web.Implementations
         private TaskCompletionSource<bool> ReserveAdmission(out Task predecessor)
         {
             predecessor = _kickoffTail;
-            var admission = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<bool> admission = new(TaskCreationOptions.RunContinuationsAsynchronously);
             _kickoffTail = admission.Task;
             return admission;
         }
@@ -207,9 +203,9 @@ namespace SiraUtil.Web.Implementations
                 newURL = Path.Combine(BaseURL, url);
             }
             int requestTimeout = timeout ?? Timeout;
-            var headers = new List<KeyValuePair<string, string>>(Headers).ToArray();
+            KeyValuePair<string, string>[] headers = [.. Headers];
             KeyValuePair<string, string>[]? extraHeaders = withHeaders is null
-                ? null : new List<KeyValuePair<string, string>>(withHeaders).ToArray();
+                ? null : [.. withHeaders];
             return new RequestSettings(newURL, requestTimeout, headers, extraHeaders);
         }
 
