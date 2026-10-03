@@ -68,7 +68,7 @@ namespace SiraUtil.Web.SiraSync.Implementations
             try
             {
                 CultureInfo.CurrentCulture = culture;
-                return Version.TryParse(NormalizeTag(tagName), out Version version) ? version : null;
+                return Version.TryParse(NormalizeTag(tagName), out Version? version) ? version : null;
             }
             catch
             {
