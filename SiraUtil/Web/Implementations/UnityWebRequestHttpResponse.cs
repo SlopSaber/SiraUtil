@@ -1,7 +1,9 @@
 ﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine.Networking;
 
@@ -29,7 +31,7 @@ namespace SiraUtil.Web.Implementations
                 return null;
             }
 
-            string body = await ReadAsStringAsync();
+            string body = await Task.FromResult(Encoding.UTF8.GetString(Bytes));
             if (body is null)
             {
                 return Code.ToString();
@@ -57,7 +59,23 @@ namespace SiraUtil.Web.Implementations
 
         public Task<string> ReadAsStringAsync()
         {
-            return Task.FromResult(Encoding.UTF8.GetString(Bytes));
+            if (Bytes is null)
+            {
+                throw new ArgumentNullException("bytes");
+            }
+
+            if (Bytes.Length == 0)
+            {
+                return Task.FromResult(string.Empty);
+            }
+
+            byte[] ownedBytes = (byte[])Bytes.Clone();
+            return Task.Factory.StartNew(
+                static state => Encoding.UTF8.GetString((byte[])state!),
+                ownedBytes,
+                CancellationToken.None,
+                TaskCreationOptions.DenyChildAttach,
+                TaskScheduler.Default);
         }
 
         private class ErrorBody
