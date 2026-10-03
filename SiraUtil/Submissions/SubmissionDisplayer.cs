@@ -4,10 +4,13 @@ using Zenject;
 
 namespace SiraUtil.Submissions
 {
-    internal abstract class SubmissionDisplayer : IInitializable, IDisposable
+    internal abstract class SubmissionDisplayer : IInitializable, ITickable, IDisposable
     {
         private readonly ViewController _resultsViewController;
         private readonly FlowCoordinator _targetFlowCoordinator;
+        private bool _waitingForText;
+        private bool _disposed;
+        private int _dataRevision;
 
         [Inject]
         private readonly SubmissionDataContainer _submissionDataContainer = null!;
@@ -31,14 +34,44 @@ namespace SiraUtil.Submissions
         {
             if (_submissionDataContainer.Disabled)
             {
+                _dataRevision = _submissionDataContainer.Revision;
+                _waitingForText = true;
                 _targetFlowCoordinator.SetBottomScreenViewController(_siraSubmissionViewController, ViewController.AnimationType.In);
+                _siraSubmissionViewController.SetText("");
+                _siraSubmissionViewController.Enabled(false);
+                Tick();
+            }
+        }
+
+        public void Tick()
+        {
+            if (!_waitingForText || _disposed)
+            {
+                return;
+            }
+
+            if (!_submissionDataContainer.Disabled || _dataRevision != _submissionDataContainer.Revision || _resultsViewController == null || _siraSubmissionViewController == null)
+            {
+                _waitingForText = false;
+                return;
+            }
+
+            if (!_siraSubmissionViewController.IsReady || !_siraSubmissionViewController.isInViewControllerHierarchy)
+            {
+                return;
+            }
+
+            if (_submissionDataContainer.TryRead(out string text))
+            {
+                _waitingForText = false;
+                _siraSubmissionViewController.SetText(text);
                 _siraSubmissionViewController.Enabled(true);
-                _siraSubmissionViewController.SetText($"<size=115%><color=#f03030>Score Submission Disabled By</color></size>\n{_submissionDataContainer.Read()}");
             }
         }
 
         private void ResultsViewController_didDeactivateEvent(bool removedFromHierarchy, bool screenSystemDisabling)
         {
+            _waitingForText = false;
             _submissionDataContainer.Disabled = false;
             _siraSubmissionViewController.Enabled(false);
             if (_siraSubmissionViewController.isInViewControllerHierarchy)
@@ -49,6 +82,8 @@ namespace SiraUtil.Submissions
 
         public void Dispose()
         {
+            _disposed = true;
+            _waitingForText = false;
             _resultsViewController.didDeactivateEvent -= ResultsViewController_didDeactivateEvent;
             _resultsViewController.didActivateEvent -= ResultsViewController_didActivateEvent;
         }

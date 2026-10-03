@@ -7,6 +7,7 @@ namespace SiraUtil.Submissions
     internal class SiraSubmissionViewController : ViewController
     {
         private CurvedTextMeshPro? _curvedText;
+        internal bool IsReady => _curvedText != null;
 
         public override void DidActivate(bool firstActivation, bool addedToHierarchy, bool screenSystemEnabling)
         {
