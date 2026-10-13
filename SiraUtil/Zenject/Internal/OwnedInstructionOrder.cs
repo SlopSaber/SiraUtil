@@ -285,7 +285,10 @@ namespace SiraUtil.Zenject.Internal
             internal int Count;
             internal Producer? Keys;
 
-            internal Aggregate(int producerCount) => Remaining = producerCount;
+            internal Aggregate(int producerCount)
+            {
+                Remaining = producerCount;
+            }
         }
 
         private static void RequestForecast(Producer producer)
