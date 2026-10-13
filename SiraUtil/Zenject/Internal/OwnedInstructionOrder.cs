@@ -6,14 +6,18 @@ using System.Runtime.ExceptionServices;
 
 namespace SiraUtil.Zenject.Internal
 {
-    internal static class OwnedInstructionOrder
+    internal static class OwnedInstructionOrder<T>
     {
         private const int MinimumKeys = 4096;
         private const int MaximumKeys = 65536;
         private static Schema? schema;
 
-        internal static IEnumerable<IInjectableMonoBehaviourInstruction> Enumerate(IOrderedEnumerable<IInjectableMonoBehaviourInstruction> ordered)
+        internal static IEnumerable<T> Enumerate(IEnumerable<T> ordered)
         {
+            if (ordered is not IOrderedEnumerable<T>)
+            {
+                return ordered;
+            }
             try
             {
                 Schema current = schema ??= new Schema(ordered.GetType());
@@ -26,7 +30,7 @@ namespace SiraUtil.Zenject.Internal
             return ordered;
         }
 
-        private static IEnumerable<IInjectableMonoBehaviourInstruction> Iterate(object ordered, Schema current)
+        private static IEnumerable<T> Iterate(object ordered, Schema current)
         {
             object buffer = Invoke(current.BufferConstructor, null, current.Source.GetValue(ordered)!);
             int count = (int)current.Count.GetValue(buffer)!;
@@ -34,7 +38,7 @@ namespace SiraUtil.Zenject.Internal
             {
                 yield break;
             }
-            IInjectableMonoBehaviourInstruction[] items = (IInjectableMonoBehaviourInstruction[])current.Items.GetValue(buffer)!;
+            T[] items = (T[])current.Items.GetValue(buffer)!;
             int[] map;
             if (count < MinimumKeys || count > MaximumKeys || !current.Supports(ordered))
             {
@@ -191,7 +195,7 @@ namespace SiraUtil.Zenject.Internal
                 {
                     throw new NotSupportedException();
                 }
-                Type element = typeof(IInjectableMonoBehaviourInstruction);
+                Type element = typeof(T);
                 orderedType = core.GetType("System.Linq.OrderedEnumerable`2", true)!.MakeGenericType(element, typeof(int));
                 if (actualOrderedType != orderedType)
                 {
@@ -202,7 +206,7 @@ namespace SiraUtil.Zenject.Internal
                 sorterType = core.GetType("System.Linq.EnumerableSorter`2", true)!.MakeGenericType(element, typeof(int));
                 Type sorterBase = sorterType.BaseType!;
                 comparerType = primitives.GetType("System.Collections.Generic.GenericComparer`1", true)!.MakeGenericType(typeof(int));
-                BufferConstructor = bufferType.GetConstructor(Members, null, [typeof(IEnumerable<IInjectableMonoBehaviourInstruction>)], null)!;
+                BufferConstructor = bufferType.GetConstructor(Members, null, [typeof(IEnumerable<T>)], null)!;
                 Source = Field(orderedBase, "_source");
                 Items = Field(bufferType, "_items");
                 Count = Field(bufferType, "_count");
@@ -235,9 +239,10 @@ namespace SiraUtil.Zenject.Internal
                 }
                 Type arraySorter = primitives.GetType("System.Collections.Generic.ArraySortHelper`1", true)!.MakeGenericType(typeof(int));
                 methods.AddRange(arraySorter.GetMethods(Members | BindingFlags.Static | BindingFlags.DeclaredOnly));
-                Type[] localTypes = [typeof(OwnedInstructionOrder), typeof(Schema), typeof(Input), typeof(Plan), typeof(Cache)];
+                Type[] localTypes = [typeof(OwnedInstructionOrder<T>), typeof(Schema), typeof(Input), typeof(Plan), typeof(Cache)];
                 foreach (Type type in localTypes
-                    .Concat(typeof(OwnedInstructionOrder).GetNestedTypes(BindingFlags.NonPublic)))
+                    .Concat(typeof(OwnedInstructionOrder<T>).GetNestedTypes(BindingFlags.NonPublic)
+                        .Select(type => type.ContainsGenericParameters ? type.MakeGenericType(typeof(T)) : type)))
                 {
                     methods.AddRange(type.GetMethods(Members | BindingFlags.Static | BindingFlags.DeclaredOnly));
                     methods.AddRange(type.GetConstructors(Members | BindingFlags.Static));

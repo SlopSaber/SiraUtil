@@ -104,7 +104,7 @@ namespace SiraUtil.Objects
             UnityEngine.Object.Instantiate(originalPrefab, irgo.transform);
             UnityEngine.Object clone = irgo.GetComponentInChildren(registrations.First().PrefabType);
 
-            foreach (RedecoratorRegistration registration in registrations)
+            foreach (RedecoratorRegistration registration in SiraUtil.Zenject.Internal.OwnedInstructionOrder<RedecoratorRegistration>.Enumerate(registrations))
             {
                 registration.Redecorate(clone);
                 if (!registration.Chain)
