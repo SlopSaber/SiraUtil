@@ -259,11 +259,7 @@ namespace SiraUtil.Zenject.Internal
                 order[i] = i;
             }
             Array.Sort(order, 0, order.Length, new IndexComparer(input));
-            if (!current.Unpatched())
-            {
-                throw new NotSupportedException();
-            }
-            return new Plan(input, order);
+            return current.Unpatched() ? new Plan(input, order) : throw new NotSupportedException();
         }
 
         internal sealed class Producer
@@ -287,11 +283,7 @@ namespace SiraUtil.Zenject.Internal
             public int Compare(int left, int right)
             {
                 int leftKey = input.Keys[left], rightKey = input.Keys[right];
-                if (leftKey == rightKey)
-                {
-                    return left - right;
-                }
-                return (leftKey < rightKey) == input.Descending ? 1 : -1;
+                return leftKey == rightKey ? left - right : (leftKey < rightKey) == input.Descending ? 1 : -1;
             }
         }
 
