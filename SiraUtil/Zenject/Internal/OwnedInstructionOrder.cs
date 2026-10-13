@@ -201,44 +201,65 @@ namespace SiraUtil.Zenject.Internal
                 {
                     return;
                 }
-                lock (Cache.Gate)
+                RequestForecast(producer);
+            }
+            catch
+            {
+                observedCount = MaximumKeys;
+                producer = null;
+            }
+        }
+
+        internal static void ObserveFinalCount(ref Producer? producer, ref int observedCount)
+        {
+            try
+            {
+                if (producer != null && observedCount >= MinimumKeys && observedCount <= MaximumKeys)
                 {
-                    Cache.Collect();
-                    if (Cache.Pending != null)
-                    {
-                        return;
-                    }
-                    int[] keys = [.. producer.Keys];
-                    if (AlreadyOrdered(keys, false) ||
-                        (Cache.Ready != null && Same(Cache.Ready.Input, keys, false)) ||
-                        (Cache.Prepared != null && Same(Cache.Prepared.Input, keys, false)))
-                    {
-                        return;
-                    }
-                    Schema current = schema ??= new Schema(typeof(Enumerable).Assembly
-                        .GetType("System.Linq.OrderedEnumerable`2", true)!.MakeGenericType(typeof(T), typeof(int)));
-                    if (!current.Unpatched())
-                    {
-                        return;
-                    }
-                    Input input = new(keys, false);
-                    if (ExecutionContext.IsFlowSuppressed())
-                    {
-                        Cache.Pending = Start(input);
-                    }
-                    else
-                    {
-                        using (ExecutionContext.SuppressFlow())
-                        {
-                            Cache.Pending = Start(input);
-                        }
-                    }
+                    RequestForecast(producer);
                 }
             }
             catch
             {
                 observedCount = MaximumKeys;
                 producer = null;
+            }
+        }
+
+        private static void RequestForecast(Producer producer)
+        {
+            lock (Cache.Gate)
+            {
+                Cache.Collect();
+                if (Cache.Pending != null)
+                {
+                    return;
+                }
+                int[] keys = [.. producer.Keys];
+                if (AlreadyOrdered(keys, false) ||
+                    (Cache.Ready != null && Same(Cache.Ready.Input, keys, false)) ||
+                    (Cache.Prepared != null && Same(Cache.Prepared.Input, keys, false)))
+                {
+                    return;
+                }
+                Schema current = schema ??= new Schema(typeof(Enumerable).Assembly
+                    .GetType("System.Linq.OrderedEnumerable`2", true)!.MakeGenericType(typeof(T), typeof(int)));
+                if (!current.Unpatched())
+                {
+                    return;
+                }
+                Input input = new(keys, false);
+                if (ExecutionContext.IsFlowSuppressed())
+                {
+                    Cache.Pending = Start(input);
+                }
+                else
+                {
+                    using (ExecutionContext.SuppressFlow())
+                    {
+                        Cache.Pending = Start(input);
+                    }
+                }
             }
         }
 

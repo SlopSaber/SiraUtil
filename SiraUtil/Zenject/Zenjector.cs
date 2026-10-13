@@ -32,7 +32,14 @@ namespace SiraUtil.Zenject
         internal SiraSyncServiceType? SiraSyncServiceType { get; private set; }
         internal IEnumerable<InstallSet> InstallSets => _installSets;
         internal IEnumerable<InstallInstruction> InstallInstructions => _installInstructions;
-        internal IEnumerable<IInjectableMonoBehaviourInstruction> InjectableMonoBehaviourInstructions => _injectableMonoBehaviourInstructions;
+        internal IEnumerable<IInjectableMonoBehaviourInstruction> InjectableMonoBehaviourInstructions
+        {
+            get
+            {
+                OwnedInstructionOrder<IInjectableMonoBehaviourInstruction>.ObserveFinalCount(ref _orderForecast, ref _forecastOrderCount);
+                return _injectableMonoBehaviourInstructions;
+            }
+        }
 
         private bool _autoBinded;
         private readonly List<InstallSet> _installSets = [];
