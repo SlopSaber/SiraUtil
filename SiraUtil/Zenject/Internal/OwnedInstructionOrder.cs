@@ -48,7 +48,7 @@ namespace SiraUtil.Zenject.Internal
             {
                 object sorter = Invoke(current.GetSorter, ordered);
                 map = (int[])Invoke(current.ComputeMap, sorter, items, count);
-                if (!TryUse(current, sorter, count, out int[]? ready))
+                if (!TryUse(current, sorter, count, map, out int[]? ready))
                 {
                     Invoke(current.QuickSort, sorter, map, 0, count - 1);
                 }
@@ -79,7 +79,7 @@ namespace SiraUtil.Zenject.Internal
             }
         }
 
-        private static bool TryUse(Schema current, object sorter, int count, out int[]? order)
+        private static bool TryUse(Schema current, object sorter, int count, int[] originalMap, out int[]? order)
         {
             order = null;
             try
@@ -93,6 +93,11 @@ namespace SiraUtil.Zenject.Internal
                 if (keys.Length != count)
                 {
                     return false;
+                }
+                if (AlreadyOrdered(keys, descending))
+                {
+                    order = originalMap;
+                    return true;
                 }
                 lock (Cache.Gate)
                 {
@@ -144,6 +149,18 @@ namespace SiraUtil.Zenject.Internal
             for (int i = 0; i < keys.Length; i++)
             {
                 if (input.Keys[i] != keys[i])
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static bool AlreadyOrdered(int[] keys, bool descending)
+        {
+            for (int i = 1; i < keys.Length; i++)
+            {
+                if (descending ? keys[i - 1] < keys[i] : keys[i - 1] > keys[i])
                 {
                     return false;
                 }
