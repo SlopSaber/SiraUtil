@@ -32,6 +32,92 @@ namespace SiraUtil.Zenject.Internal
             return ordered;
         }
 
+        internal static bool HasAny(IEnumerable<T> ordered)
+        {
+            Schema? current = null;
+            if (ordered is IOrderedEnumerable<T>)
+            {
+                try
+                {
+                    Schema candidate = schema ??= new Schema(ordered.GetType());
+                    if (candidate.SupportsAny(ordered))
+                    {
+                        current = candidate;
+                    }
+                }
+                catch { }
+            }
+            return current == null ? ordered.Any() : HasAnyCaptured(ordered, current);
+        }
+
+        private static bool HasAnyCaptured(object ordered, Schema current)
+        {
+            object buffer = Invoke(current.BufferConstructor, null, current.Source.GetValue(ordered)!);
+            int count = (int)current.Count.GetValue(buffer)!;
+            if (count == 0)
+            {
+                return false;
+            }
+            T[] items = (T[])current.Items.GetValue(buffer)!;
+            try
+            {
+                if (count < MinimumKeys || !current.SupportsAny(ordered))
+                {
+                    Invoke(current.SortedMap, ordered, buffer);
+                }
+                else
+                {
+                    object sorter = Invoke(current.GetSorter, ordered);
+                    int[] map = (int[])Invoke(current.ComputeMap, sorter, items, count);
+                    if (!TryMembership(current, ordered, sorter, count))
+                    {
+                        Invoke(current.QuickSort, sorter, map, 0, count - 1);
+                        Observe(current, sorter, count, map);
+                    }
+                }
+                return true;
+            }
+            finally
+            {
+                GC.KeepAlive(items);
+            }
+        }
+
+        private static bool TryMembership(Schema current, object ordered, object sorter, int count)
+        {
+            try
+            {
+                if (!current.SupportsAny(ordered) || !current.SupportsSorter(sorter))
+                {
+                    return false;
+                }
+                int[] keys = (int[])current.Keys.GetValue(sorter)!;
+                if (keys.Length != count)
+                {
+                    return false;
+                }
+                Warm(keys, (bool)current.Descending.GetValue(sorter)!);
+                return true;
+            }
+            catch { return false; }
+        }
+
+        private static void Warm(int[] keys, bool descending)
+        {
+            try
+            {
+                lock (Cache.Gate)
+                {
+                    Cache.Collect();
+                    if (Cache.Pending == null)
+                    {
+                        QueueForecast((int[])keys.Clone(), descending);
+                    }
+                }
+            }
+            catch { }
+        }
+
         private static IEnumerable<T> Iterate(object ordered, Schema current)
         {
             object buffer = Invoke(current.BufferConstructor, null, current.Source.GetValue(ordered)!);
@@ -378,29 +464,34 @@ namespace SiraUtil.Zenject.Internal
                     return;
                 }
                 int[] keys = [.. producer.Keys];
-                if (AlreadyOrdered(keys, descending) ||
-                    (Cache.Ready != null && Same(Cache.Ready.Input, keys, descending)) ||
-                    (Cache.Prepared != null && Same(Cache.Prepared.Input, keys, descending)))
-                {
-                    return;
-                }
-                Schema current = schema ??= new Schema(typeof(Enumerable).Assembly
-                    .GetType("System.Linq.OrderedEnumerable`2", true)!.MakeGenericType(typeof(T), typeof(int)));
-                if (!current.Unpatched())
-                {
-                    return;
-                }
-                Input input = new(keys, descending);
-                if (ExecutionContext.IsFlowSuppressed())
+                QueueForecast(keys, descending);
+            }
+        }
+
+        private static void QueueForecast(int[] keys, bool descending)
+        {
+            if (AlreadyOrdered(keys, descending) ||
+                (Cache.Ready != null && Same(Cache.Ready.Input, keys, descending)) ||
+                (Cache.Prepared != null && Same(Cache.Prepared.Input, keys, descending)))
+            {
+                return;
+            }
+            Schema current = schema ??= new Schema(typeof(Enumerable).Assembly
+                .GetType("System.Linq.OrderedEnumerable`2", true)!.MakeGenericType(typeof(T), typeof(int)));
+            if (!current.Unpatched())
+            {
+                return;
+            }
+            Input input = new(keys, descending);
+            if (ExecutionContext.IsFlowSuppressed())
+            {
+                Cache.Pending = Start(input);
+            }
+            else
+            {
+                using (ExecutionContext.SuppressFlow())
                 {
                     Cache.Pending = Start(input);
-                }
-                else
-                {
-                    using (ExecutionContext.SuppressFlow())
-                    {
-                        Cache.Pending = Start(input);
-                    }
                 }
             }
         }
@@ -501,6 +592,7 @@ namespace SiraUtil.Zenject.Internal
             private readonly FieldInfo next;
             private readonly FieldInfo sorterComparer;
             private readonly MethodBase[] guards;
+            private readonly MethodBase[] anyGuards;
             internal readonly ConstructorInfo BufferConstructor;
             internal readonly FieldInfo Source, Items, Count, Keys, Descending;
             internal readonly MethodInfo SortedMap, GetSorter, ComputeMap, QuickSort;
@@ -566,6 +658,23 @@ namespace SiraUtil.Zenject.Internal
                     methods.AddRange(type.GetMethods(Members | BindingFlags.Static | BindingFlags.DeclaredOnly));
                     methods.AddRange(type.GetConstructors(Members | BindingFlags.Static));
                 }
+                List<MethodBase> membershipMethods =
+                [
+                    typeof(Enumerable).GetMethods(BindingFlags.Public | BindingFlags.Static)
+                        .Single(method => method.Name == nameof(Enumerable.Any) && method.IsGenericMethodDefinition &&
+                            method.GetGenericArguments().Length == 1 && method.GetParameters().Length == 1)
+                        .MakeGenericMethod(element)
+                ];
+                membershipMethods.AddRange(orderedBase.GetMethods(Members | BindingFlags.DeclaredOnly)
+                    .Where(method => method.Name.Contains("GetEnumerator")));
+                foreach (Type iterator in orderedBase.GetNestedTypes(BindingFlags.NonPublic)
+                    .Where(type => type.Name.StartsWith("<GetEnumerator>", StringComparison.Ordinal)))
+                {
+                    Type closed = iterator.ContainsGenericParameters ? iterator.MakeGenericType(element) : iterator;
+                    membershipMethods.AddRange(closed.GetMethods(Members | BindingFlags.DeclaredOnly));
+                    membershipMethods.AddRange(closed.GetConstructors(Members));
+                }
+                anyGuards = [.. membershipMethods];
                 guards = [.. methods];
             }
 
@@ -587,6 +696,22 @@ namespace SiraUtil.Zenject.Internal
 
             internal bool Supports(object ordered) => ordered.GetType() == orderedType && Unpatched() &&
                 parent.GetValue(ordered) == null && orderedComparer.GetValue(ordered)?.GetType() == comparerType;
+
+            internal bool SupportsAny(object ordered)
+            {
+                if (!Supports(ordered))
+                {
+                    return false;
+                }
+                foreach (MethodBase method in anyGuards)
+                {
+                    if (HarmonyLib.Harmony.GetPatchInfo(method)?.Owners.Count > 0)
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
 
             internal bool SupportsSorter(object sorter) => sorter.GetType() == sorterType && Unpatched() &&
                 next.GetValue(sorter) == null && sorterComparer.GetValue(sorter)?.GetType() == comparerType;

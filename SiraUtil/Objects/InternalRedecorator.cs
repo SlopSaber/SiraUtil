@@ -96,7 +96,7 @@ namespace SiraUtil.Objects
                 SiraUtil.Zenject.Internal.OwnedInstructionOrder<RedecoratorRegistration>.CreateFirstCapture();
             IEnumerable<RedecoratorRegistration> registrations = container.AncestorContainers[0].Resolve<List<RedecoratorRegistration>>().Where(rr => rr.ContainerType == mainType && rr.Contract == fieldName).OrderByDescending(rr => SiraUtil.Zenject.Internal.OwnedInstructionOrder<RedecoratorRegistration>.ObserveFirstKey(forecast, rr.Priority));
 
-            if (!registrations.Any())
+            if (!SiraUtil.Zenject.Internal.OwnedInstructionOrder<RedecoratorRegistration>.HasAny(registrations))
             {
                 return originalPrefab;
             }
