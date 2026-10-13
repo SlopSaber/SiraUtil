@@ -230,7 +230,7 @@ namespace SiraUtil.Zenject.Internal
         {
             try
             {
-                MethodInfo? countGetter = typeof(HashSet<TProducer>).GetProperty(nameof(HashSet<TProducer>.Count))?.GetGetMethod();
+                MethodInfo? countGetter = typeof(HashSet<TProducer>).GetProperty(nameof(HashSet<>.Count))?.GetGetMethod();
                 if (countGetter == null || HarmonyLib.Harmony.GetPatchInfo(countGetter) != null)
                 {
                     return null;
