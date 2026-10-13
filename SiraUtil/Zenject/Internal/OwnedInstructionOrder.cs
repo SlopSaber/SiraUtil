@@ -11,7 +11,7 @@ namespace SiraUtil.Zenject.Internal
     internal static class OwnedInstructionOrder<T>
     {
         private const int MinimumKeys = 4096;
-        private const int MaximumKeys = 65536;
+        private const int MaximumKeys = int.MaxValue;
         private static Schema? schema;
 
         internal static IEnumerable<T> Enumerate(IEnumerable<T> ordered)
