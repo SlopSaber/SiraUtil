@@ -226,10 +226,16 @@ namespace SiraUtil.Zenject.Internal
             }
         }
 
-        internal static Aggregate? CreateAggregate(int producerCount)
+        internal static Aggregate? CreateAggregate<TProducer>(HashSet<TProducer> producers)
         {
             try
             {
+                MethodInfo? countGetter = typeof(HashSet<TProducer>).GetProperty(nameof(HashSet<TProducer>.Count))?.GetGetMethod();
+                if (countGetter == null || HarmonyLib.Harmony.GetPatchInfo(countGetter) != null)
+                {
+                    return null;
+                }
+                int producerCount = producers.Count;
                 return producerCount > 1 ? new Aggregate(producerCount) : null;
             }
             catch
