@@ -41,6 +41,9 @@ namespace SiraUtil.Zenject
             }
         }
 
+        internal void ObserveAggregateOrder(OwnedInstructionOrder<IInjectableMonoBehaviourInstruction>.Aggregate? aggregate) =>
+            OwnedInstructionOrder<IInjectableMonoBehaviourInstruction>.ObserveAggregate(aggregate, _orderForecast, _forecastOrderCount);
+
         private bool _autoBinded;
         private readonly List<InstallSet> _installSets = [];
         private readonly List<InstallInstruction> _installInstructions = [];

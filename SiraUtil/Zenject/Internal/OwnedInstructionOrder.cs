@@ -226,6 +226,68 @@ namespace SiraUtil.Zenject.Internal
             }
         }
 
+        internal static Aggregate? CreateAggregate(int producerCount)
+        {
+            try
+            {
+                return producerCount > 1 ? new Aggregate(producerCount) : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        internal static void ObserveAggregate(Aggregate? aggregate, Producer? producer, int observedCount)
+        {
+            if (aggregate == null || aggregate.Remaining <= 0)
+            {
+                return;
+            }
+            try
+            {
+                if (observedCount < 0 || observedCount > MaximumKeys - aggregate.Count ||
+                    (producer != null && producer.Keys.Count != observedCount))
+                {
+                    aggregate.Remaining = 0;
+                    aggregate.Keys = null;
+                    return;
+                }
+                if (producer != null)
+                {
+                    aggregate.Keys ??= new Producer(aggregate.Count);
+                    aggregate.Keys.Keys.AddRange(producer.Keys);
+                }
+                else if (aggregate.Keys != null)
+                {
+                    for (int i = 0; i < observedCount; i++)
+                    {
+                        aggregate.Keys.Keys.Add(0);
+                    }
+                }
+                aggregate.Count += observedCount;
+                aggregate.Remaining--;
+                if (aggregate.Remaining == 0 && aggregate.Count >= MinimumKeys && aggregate.Keys != null)
+                {
+                    RequestForecast(aggregate.Keys);
+                }
+            }
+            catch
+            {
+                aggregate.Remaining = 0;
+                aggregate.Keys = null;
+            }
+        }
+
+        internal sealed class Aggregate
+        {
+            internal int Remaining;
+            internal int Count;
+            internal Producer? Keys;
+
+            internal Aggregate(int producerCount) => Remaining = producerCount;
+        }
+
         private static void RequestForecast(Producer producer)
         {
             lock (Cache.Gate)
@@ -416,7 +478,7 @@ namespace SiraUtil.Zenject.Internal
                 }
                 Type arraySorter = primitives.GetType("System.Collections.Generic.ArraySortHelper`1", true)!.MakeGenericType(typeof(int));
                 methods.AddRange(arraySorter.GetMethods(Members | BindingFlags.Static | BindingFlags.DeclaredOnly));
-                Type[] localTypes = [typeof(OwnedInstructionOrder<T>), typeof(Schema), typeof(Input), typeof(Plan), typeof(Cache), typeof(Producer), typeof(IndexComparer)];
+                Type[] localTypes = [typeof(OwnedInstructionOrder<T>), typeof(Schema), typeof(Input), typeof(Plan), typeof(Cache), typeof(Producer), typeof(Aggregate), typeof(IndexComparer)];
                 foreach (Type type in localTypes
                     .Concat(typeof(OwnedInstructionOrder<T>).GetNestedTypes(BindingFlags.NonPublic)
                         .Select(type => type.ContainsGenericParameters ? type.MakeGenericType(typeof(T)) : type)))

@@ -101,7 +101,15 @@ namespace SiraUtil.Zenject
 
         private void ContextDecorator_SceneBindingsInstalled(Context context, List<MonoBehaviour> injectableMonoBehaviours)
         {
-            foreach (IInjectableMonoBehaviourInstruction instruction in OwnedInstructionOrder<IInjectableMonoBehaviourInstruction>.Enumerate(_zenjectors.SelectMany(zd => zd.Zenjector.InjectableMonoBehaviourInstructions).OrderBy(i => i.Order)))
+            OwnedInstructionOrder<IInjectableMonoBehaviourInstruction>.Aggregate? forecast =
+                OwnedInstructionOrder<IInjectableMonoBehaviourInstruction>.CreateAggregate(_zenjectors.Count);
+            foreach (IInjectableMonoBehaviourInstruction instruction in OwnedInstructionOrder<IInjectableMonoBehaviourInstruction>.Enumerate(_zenjectors.SelectMany(zd =>
+            {
+                Zenjector zenjector = zd.Zenjector;
+                IEnumerable<IInjectableMonoBehaviourInstruction> instructions = zenjector.InjectableMonoBehaviourInstructions;
+                zenjector.ObserveAggregateOrder(forecast);
+                return instructions;
+            }).OrderBy(i => i.Order)))
             {
                 foreach (MonoBehaviour monoBehaviour in injectableMonoBehaviours)
                 {
