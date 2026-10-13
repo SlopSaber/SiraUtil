@@ -309,13 +309,7 @@ namespace SiraUtil.Zenject.Internal
             }
         }
 
-        internal static void BeginFirstCapture(FirstCapture? capture)
-        {
-            if (capture != null)
-            {
-                capture.Recording = true;
-            }
-        }
+        internal static void BeginFirstCapture(FirstCapture? capture) => capture?.Recording = true;
 
         internal static int ObserveFirstKey(FirstCapture? capture, int key)
         {
