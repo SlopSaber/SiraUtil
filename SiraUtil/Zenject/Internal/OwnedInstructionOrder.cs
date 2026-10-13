@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace SiraUtil.Zenject.Internal
 {
@@ -101,10 +103,15 @@ namespace SiraUtil.Zenject.Internal
                 }
                 lock (Cache.Gate)
                 {
+                    Cache.Collect();
                     Plan? plan = Cache.Ready;
                     if (plan == null || !Same(plan.Input, keys, descending))
                     {
-                        return false;
+                        plan = Cache.Prepared;
+                        if (plan == null || !Same(plan.Input, keys, descending))
+                        {
+                            return false;
+                        }
                     }
                     order = plan.Order;
                     return true;
@@ -129,8 +136,14 @@ namespace SiraUtil.Zenject.Internal
                 }
                 lock (Cache.Gate)
                 {
+                    Cache.Collect();
                     if (Cache.Ready != null && Same(Cache.Ready.Input, keys, descending))
                     {
+                        return;
+                    }
+                    if (Cache.Prepared != null && Same(Cache.Prepared.Input, keys, descending))
+                    {
+                        Cache.Ready = Cache.Prepared;
                         return;
                     }
                     Input input = new((int[])keys.Clone(), descending);
@@ -168,6 +181,120 @@ namespace SiraUtil.Zenject.Internal
             return true;
         }
 
+        internal static void ObserveAppend(ref Producer? producer, ref int observedCount, int order)
+        {
+            try
+            {
+                if (observedCount >= MaximumKeys)
+                {
+                    producer = null;
+                    return;
+                }
+                observedCount++;
+                if (producer == null && order == 0)
+                {
+                    return;
+                }
+                producer ??= new Producer(observedCount - 1);
+                producer.Keys.Add(order);
+                if (observedCount < MinimumKeys || (observedCount & (observedCount - 1)) != 0)
+                {
+                    return;
+                }
+                lock (Cache.Gate)
+                {
+                    Cache.Collect();
+                    if (Cache.Pending != null)
+                    {
+                        return;
+                    }
+                    int[] keys = [.. producer.Keys];
+                    if (AlreadyOrdered(keys, false) ||
+                        (Cache.Ready != null && Same(Cache.Ready.Input, keys, false)) ||
+                        (Cache.Prepared != null && Same(Cache.Prepared.Input, keys, false)))
+                    {
+                        return;
+                    }
+                    Schema current = schema ??= new Schema(typeof(Enumerable).Assembly
+                        .GetType("System.Linq.OrderedEnumerable`2", true)!.MakeGenericType(typeof(T), typeof(int)));
+                    if (!current.Unpatched())
+                    {
+                        return;
+                    }
+                    Input input = new(keys, false);
+                    if (ExecutionContext.IsFlowSuppressed())
+                    {
+                        Cache.Pending = Start(input);
+                    }
+                    else
+                    {
+                        using (ExecutionContext.SuppressFlow())
+                        {
+                            Cache.Pending = Start(input);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                observedCount = MaximumKeys;
+                producer = null;
+            }
+        }
+
+        private static Task<Plan> Start(Input input) => Task.Factory.StartNew(Prepare, input,
+            CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+
+        private static Plan Prepare(object? state)
+        {
+            Input input = (Input)state!;
+            Schema current = schema ?? throw new NotSupportedException();
+            if (!current.Unpatched())
+            {
+                throw new NotSupportedException();
+            }
+            int[] order = new int[input.Keys.Length];
+            for (int i = 0; i < order.Length; i++)
+            {
+                order[i] = i;
+            }
+            Array.Sort(order, 0, order.Length, new IndexComparer(input));
+            if (!current.Unpatched())
+            {
+                throw new NotSupportedException();
+            }
+            return new Plan(input, order);
+        }
+
+        internal sealed class Producer
+        {
+            internal readonly List<int> Keys;
+            internal Producer(int precedingZeros)
+            {
+                Keys = new(precedingZeros + 1);
+                for (int i = 0; i < precedingZeros; i++)
+                {
+                    Keys.Add(0);
+                }
+            }
+        }
+
+        private sealed class IndexComparer : IComparer<int>
+        {
+            private readonly Input input;
+            internal IndexComparer(Input input) { this.input = input; }
+
+            public int Compare(int left, int right)
+            {
+                int leftKey = input.Keys[left], rightKey = input.Keys[right];
+                if (leftKey == rightKey)
+                {
+                    return left - right;
+                }
+                return (leftKey < rightKey) == input.Descending ? 1 : -1;
+            }
+        }
+
         private sealed class Input
         {
             internal readonly int[] Keys;
@@ -186,6 +313,26 @@ namespace SiraUtil.Zenject.Internal
         {
             internal static readonly object Gate = new();
             internal static Plan? Ready;
+            internal static Plan? Prepared;
+            internal static Task<Plan>? Pending;
+
+            internal static void Collect()
+            {
+                Task<Plan>? task = Pending;
+                if (task == null || !task.IsCompleted)
+                {
+                    return;
+                }
+                if (task.Status == TaskStatus.RanToCompletion)
+                {
+                    Prepared = task.GetAwaiter().GetResult();
+                }
+                else
+                {
+                    _ = task.Exception;
+                }
+                Pending = null;
+            }
         }
 
         private sealed class Schema
@@ -256,7 +403,7 @@ namespace SiraUtil.Zenject.Internal
                 }
                 Type arraySorter = primitives.GetType("System.Collections.Generic.ArraySortHelper`1", true)!.MakeGenericType(typeof(int));
                 methods.AddRange(arraySorter.GetMethods(Members | BindingFlags.Static | BindingFlags.DeclaredOnly));
-                Type[] localTypes = [typeof(OwnedInstructionOrder<T>), typeof(Schema), typeof(Input), typeof(Plan), typeof(Cache)];
+                Type[] localTypes = [typeof(OwnedInstructionOrder<T>), typeof(Schema), typeof(Input), typeof(Plan), typeof(Cache), typeof(Producer), typeof(IndexComparer)];
                 foreach (Type type in localTypes
                     .Concat(typeof(OwnedInstructionOrder<T>).GetNestedTypes(BindingFlags.NonPublic)
                         .Select(type => type.ContainsGenericParameters ? type.MakeGenericType(typeof(T)) : type)))

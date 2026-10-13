@@ -38,6 +38,8 @@ namespace SiraUtil.Zenject
         private readonly List<InstallSet> _installSets = [];
         private readonly List<InstallInstruction> _installInstructions = [];
         private readonly List<IInjectableMonoBehaviourInstruction> _injectableMonoBehaviourInstructions = [];
+        private OwnedInstructionOrder<IInjectableMonoBehaviourInstruction>.Producer? _orderForecast;
+        private int _forecastOrderCount;
 
         internal Zenjector(PluginMetadata metadata)
         {
@@ -200,6 +202,7 @@ namespace SiraUtil.Zenject
             }
 
             _injectableMonoBehaviourInstructions.Add(new ExposeInstruction<TMonoBehaviour>(identifier, useSceneContext, ifNotBound, condition, bindTypes));
+            OwnedInstructionOrder<IInjectableMonoBehaviourInstruction>.ObserveAppend(ref _orderForecast, ref _forecastOrderCount, 0);
         }
 
         /// <summary>
@@ -216,6 +219,7 @@ namespace SiraUtil.Zenject
             }
 
             _injectableMonoBehaviourInstructions.Add(new SceneDecoratorExposeInstruction<TExposeType>(contractName));
+            OwnedInstructionOrder<IInjectableMonoBehaviourInstruction>.ObserveAppend(ref _orderForecast, ref _forecastOrderCount, 0);
         }
 
         /// <summary>
@@ -227,6 +231,7 @@ namespace SiraUtil.Zenject
         public void Mutate<TMonoBehaviour>(Action<Context, TMonoBehaviour> action, int order = 0) where TMonoBehaviour : MonoBehaviour
         {
             _injectableMonoBehaviourInstructions.Add(new MutateInstruction<TMonoBehaviour>(action, order));
+            OwnedInstructionOrder<IInjectableMonoBehaviourInstruction>.ObserveAppend(ref _orderForecast, ref _forecastOrderCount, order);
         }
 
         /// <summary>
@@ -253,6 +258,7 @@ namespace SiraUtil.Zenject
             }
 
             _injectableMonoBehaviourInstructions.Add(new MutateInstruction<TMonoBehaviour, TNewComponent>(action, gameObjectGetter, condition, bindTypes, order));
+            OwnedInstructionOrder<IInjectableMonoBehaviourInstruction>.ObserveAppend(ref _orderForecast, ref _forecastOrderCount, order);
         }
 
         /// <summary>
@@ -265,6 +271,7 @@ namespace SiraUtil.Zenject
         public void Mutate<TMutateType>(string contractName, Action<SceneDecoratorContext, TMutateType> mutationCallback)
         {
             _injectableMonoBehaviourInstructions.Add(new SceneDecoratorMutateInstruction<TMutateType>(contractName, mutationCallback));
+            OwnedInstructionOrder<IInjectableMonoBehaviourInstruction>.ObserveAppend(ref _orderForecast, ref _forecastOrderCount, 0);
         }
 
         /// <summary>
