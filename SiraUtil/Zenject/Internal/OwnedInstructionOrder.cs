@@ -1,4 +1,3 @@
-using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,7 +17,10 @@ namespace SiraUtil.Zenject.Internal
             try
             {
                 Schema current = schema ??= new Schema(ordered.GetType());
-                if (current.Supports(ordered)) return Iterate(ordered, current);
+                if (current.Supports(ordered))
+                {
+                    return Iterate(ordered, current);
+                }
             }
             catch { }
             return ordered;
@@ -28,8 +30,11 @@ namespace SiraUtil.Zenject.Internal
         {
             object buffer = Invoke(current.BufferConstructor, null, current.Source.GetValue(ordered)!);
             int count = (int)current.Count.GetValue(buffer)!;
-            if (count == 0) yield break;
-            var items = (IInjectableMonoBehaviourInstruction[])current.Items.GetValue(buffer)!;
+            if (count == 0)
+            {
+                yield break;
+            }
+            IInjectableMonoBehaviourInstruction[] items = (IInjectableMonoBehaviourInstruction[])current.Items.GetValue(buffer)!;
             int[] map;
             if (count < MinimumKeys || count > MaximumKeys || !current.Supports(ordered))
             {
@@ -40,12 +45,19 @@ namespace SiraUtil.Zenject.Internal
                 object sorter = Invoke(current.GetSorter, ordered);
                 map = (int[])Invoke(current.ComputeMap, sorter, items, count);
                 if (!TryUse(current, sorter, count, out int[]? ready))
+                {
                     Invoke(current.QuickSort, sorter, map, 0, count - 1);
+                }
                 else
+                {
                     map = ready!;
+                }
                 Observe(current, sorter, count, map);
             }
-            for (int i = 0; i < count; i++) yield return items[map[i]];
+            for (int i = 0; i < count; i++)
+            {
+                yield return items[map[i]];
+            }
         }
 
         private static object Invoke(MethodBase method, object? instance, params object[] arguments)
@@ -68,14 +80,23 @@ namespace SiraUtil.Zenject.Internal
             order = null;
             try
             {
-                if (!current.SupportsSorter(sorter)) return false;
-                var keys = (int[])current.Keys.GetValue(sorter)!;
+                if (!current.SupportsSorter(sorter))
+                {
+                    return false;
+                }
+                int[] keys = (int[])current.Keys.GetValue(sorter)!;
                 bool descending = (bool)current.Descending.GetValue(sorter)!;
-                if (keys.Length != count) return false;
+                if (keys.Length != count)
+                {
+                    return false;
+                }
                 lock (Cache.Gate)
                 {
                     Plan? plan = Cache.Ready;
-                    if (plan == null || !Same(plan.Input, keys, descending)) return false;
+                    if (plan == null || !Same(plan.Input, keys, descending))
+                    {
+                        return false;
+                    }
                     order = plan.Order;
                     return true;
                 }
@@ -87,14 +108,23 @@ namespace SiraUtil.Zenject.Internal
         {
             try
             {
-                if (!current.SupportsSorter(sorter)) return;
-                var keys = (int[])current.Keys.GetValue(sorter)!;
+                if (!current.SupportsSorter(sorter))
+                {
+                    return;
+                }
+                int[] keys = (int[])current.Keys.GetValue(sorter)!;
                 bool descending = (bool)current.Descending.GetValue(sorter)!;
-                if (keys.Length != count) return;
+                if (keys.Length != count)
+                {
+                    return;
+                }
                 lock (Cache.Gate)
                 {
-                    if (Cache.Ready != null && Same(Cache.Ready.Input, keys, descending)) return;
-                    var input = new Input((int[])keys.Clone(), descending);
+                    if (Cache.Ready != null && Same(Cache.Ready.Input, keys, descending))
+                    {
+                        return;
+                    }
+                    Input input = new((int[])keys.Clone(), descending);
                     Cache.Ready = new Plan(input, (int[])order.Clone());
                 }
             }
@@ -103,8 +133,17 @@ namespace SiraUtil.Zenject.Internal
 
         private static bool Same(Input input, int[] keys, bool descending)
         {
-            if (input.Descending != descending || input.Keys.Length != keys.Length) return false;
-            for (int i = 0; i < keys.Length; i++) if (input.Keys[i] != keys[i]) return false;
+            if (input.Descending != descending || input.Keys.Length != keys.Length)
+            {
+                return false;
+            }
+            for (int i = 0; i < keys.Length; i++)
+            {
+                if (input.Keys[i] != keys[i])
+                {
+                    return false;
+                }
+            }
             return true;
         }
 
@@ -124,7 +163,7 @@ namespace SiraUtil.Zenject.Internal
 
         private static class Cache
         {
-            internal static readonly object Gate = new object();
+            internal static readonly object Gate = new();
             internal static Plan? Ready;
         }
 
@@ -149,16 +188,21 @@ namespace SiraUtil.Zenject.Internal
                 Assembly primitives = typeof(int).Assembly;
                 if (core.ManifestModule.ModuleVersionId != new Guid("80564d68-9e48-448f-a2a7-101993ee7201") ||
                     primitives.ManifestModule.ModuleVersionId != new Guid("41d29b35-2f6a-475a-b1bf-7c6628b82790"))
+                {
                     throw new NotSupportedException();
+                }
                 Type element = typeof(IInjectableMonoBehaviourInstruction);
                 orderedType = core.GetType("System.Linq.OrderedEnumerable`2", true)!.MakeGenericType(element, typeof(int));
-                if (actualOrderedType != orderedType) throw new NotSupportedException();
+                if (actualOrderedType != orderedType)
+                {
+                    throw new NotSupportedException();
+                }
                 Type orderedBase = orderedType.BaseType!;
                 Type bufferType = core.GetType("System.Linq.Buffer`1", true)!.MakeGenericType(element);
                 sorterType = core.GetType("System.Linq.EnumerableSorter`2", true)!.MakeGenericType(element, typeof(int));
                 Type sorterBase = sorterType.BaseType!;
                 comparerType = primitives.GetType("System.Collections.Generic.GenericComparer`1", true)!.MakeGenericType(typeof(int));
-                BufferConstructor = bufferType.GetConstructor(Members, null, new[] { typeof(IEnumerable<IInjectableMonoBehaviourInstruction>) }, null)!;
+                BufferConstructor = bufferType.GetConstructor(Members, null, [typeof(IEnumerable<IInjectableMonoBehaviourInstruction>)], null)!;
                 Source = Field(orderedBase, "_source");
                 Items = Field(bufferType, "_items");
                 Count = Field(bufferType, "_count");
@@ -172,28 +216,33 @@ namespace SiraUtil.Zenject.Internal
                 GetSorter = Method(orderedBase, "GetEnumerableSorter");
                 ComputeMap = Method(sorterBase, "ComputeMap", element.MakeArrayType(), typeof(int));
                 QuickSort = Method(sorterType, "QuickSort", typeof(int[]), typeof(int), typeof(int));
-                var methods = new List<MethodBase>
-                {
+                List<MethodBase> methods =
+                [
                     BufferConstructor, SortedMap, GetSorter, ComputeMap, QuickSort,
                     Method(orderedType, "GetEnumerableSorter", sorterBase),
                     Method(sorterType, "ComputeKeys", element.MakeArrayType(), typeof(int)),
                     Method(sorterType, "CompareAnyKeys", typeof(int), typeof(int)),
                     Method(sorterBase, "Sort", element.MakeArrayType(), typeof(int)),
                     Method(comparerType, "Compare", typeof(int), typeof(int)),
-                    typeof(int).GetMethod("CompareTo", new[] { typeof(int) })!
-                };
+                    typeof(int).GetMethod("CompareTo", [typeof(int)])!
+                ];
                 foreach (MethodInfo method in typeof(Array).GetMethods(BindingFlags.Public | BindingFlags.Static))
+                {
                     if (method.Name == "Sort" && (!method.IsGenericMethodDefinition || method.GetGenericArguments().Length == 1))
+                    {
                         methods.Add(method.IsGenericMethodDefinition ? method.MakeGenericMethod(typeof(int)) : method);
+                    }
+                }
                 Type arraySorter = primitives.GetType("System.Collections.Generic.ArraySortHelper`1", true)!.MakeGenericType(typeof(int));
                 methods.AddRange(arraySorter.GetMethods(Members | BindingFlags.Static | BindingFlags.DeclaredOnly));
-                foreach (Type type in new[] { typeof(OwnedInstructionOrder), typeof(Schema), typeof(Input), typeof(Plan), typeof(Cache) }
+                Type[] localTypes = [typeof(OwnedInstructionOrder), typeof(Schema), typeof(Input), typeof(Plan), typeof(Cache)];
+                foreach (Type type in localTypes
                     .Concat(typeof(OwnedInstructionOrder).GetNestedTypes(BindingFlags.NonPublic)))
                 {
                     methods.AddRange(type.GetMethods(Members | BindingFlags.Static | BindingFlags.DeclaredOnly));
                     methods.AddRange(type.GetConstructors(Members | BindingFlags.Static));
                 }
-                guards = methods.ToArray();
+                guards = [.. methods];
             }
 
             private static FieldInfo Field(Type type, string name) => type.GetField(name, Members) ?? throw new NotSupportedException();
@@ -203,7 +252,12 @@ namespace SiraUtil.Zenject.Internal
             internal bool Unpatched()
             {
                 foreach (MethodBase method in guards)
-                    if (Harmony.GetPatchInfo(method)?.Owners.Count > 0) return false;
+                {
+                    if (HarmonyLib.Harmony.GetPatchInfo(method)?.Owners.Count > 0)
+                    {
+                        return false;
+                    }
+                }
                 return true;
             }
 
