@@ -297,7 +297,84 @@ namespace SiraUtil.Zenject.Internal
             }
         }
 
-        private static void RequestForecast(Producer producer)
+        internal static FirstCapture? CreateFirstCapture()
+        {
+            try
+            {
+                return new();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        internal static void BeginFirstCapture(FirstCapture? capture)
+        {
+            if (capture != null)
+            {
+                capture.Recording = true;
+            }
+        }
+
+        internal static int ObserveFirstKey(FirstCapture? capture, int key)
+        {
+            if (capture != null && capture.Recording)
+            {
+                try
+                {
+                    if (capture.Count >= MaximumKeys)
+                    {
+                        capture.Recording = false;
+                        capture.Keys = null;
+                    }
+                    else
+                    {
+                        capture.Count++;
+                        if (capture.Keys != null || key != 0)
+                        {
+                            capture.Keys ??= new Producer(capture.Count - 1);
+                            capture.Keys.Keys.Add(key);
+                        }
+                    }
+                }
+                catch
+                {
+                    capture.Recording = false;
+                    capture.Keys = null;
+                }
+            }
+            return key;
+        }
+
+        internal static void CompleteFirstCapture(FirstCapture? capture)
+        {
+            if (capture == null)
+            {
+                return;
+            }
+            capture.Recording = false;
+            try
+            {
+                if (capture.Count >= MinimumKeys && capture.Keys != null)
+                {
+                    RequestForecast(capture.Keys, true);
+                }
+            }
+            catch
+            {
+                capture.Keys = null;
+            }
+        }
+
+        internal sealed class FirstCapture
+        {
+            internal bool Recording;
+            internal int Count;
+            internal Producer? Keys;
+        }
+
+        private static void RequestForecast(Producer producer, bool descending = false)
         {
             lock (Cache.Gate)
             {
@@ -307,9 +384,9 @@ namespace SiraUtil.Zenject.Internal
                     return;
                 }
                 int[] keys = [.. producer.Keys];
-                if (AlreadyOrdered(keys, false) ||
-                    (Cache.Ready != null && Same(Cache.Ready.Input, keys, false)) ||
-                    (Cache.Prepared != null && Same(Cache.Prepared.Input, keys, false)))
+                if (AlreadyOrdered(keys, descending) ||
+                    (Cache.Ready != null && Same(Cache.Ready.Input, keys, descending)) ||
+                    (Cache.Prepared != null && Same(Cache.Prepared.Input, keys, descending)))
                 {
                     return;
                 }
@@ -319,7 +396,7 @@ namespace SiraUtil.Zenject.Internal
                 {
                     return;
                 }
-                Input input = new(keys, false);
+                Input input = new(keys, descending);
                 if (ExecutionContext.IsFlowSuppressed())
                 {
                     Cache.Pending = Start(input);
@@ -487,7 +564,7 @@ namespace SiraUtil.Zenject.Internal
                 }
                 Type arraySorter = primitives.GetType("System.Collections.Generic.ArraySortHelper`1", true)!.MakeGenericType(typeof(int));
                 methods.AddRange(arraySorter.GetMethods(Members | BindingFlags.Static | BindingFlags.DeclaredOnly));
-                Type[] localTypes = [typeof(OwnedInstructionOrder<T>), typeof(Schema), typeof(Input), typeof(Plan), typeof(Cache), typeof(Producer), typeof(Aggregate), typeof(IndexComparer)];
+                Type[] localTypes = [typeof(OwnedInstructionOrder<T>), typeof(Schema), typeof(Input), typeof(Plan), typeof(Cache), typeof(Producer), typeof(Aggregate), typeof(FirstCapture), typeof(IndexComparer)];
                 foreach (Type type in localTypes
                     .Concat(typeof(OwnedInstructionOrder<T>).GetNestedTypes(BindingFlags.NonPublic)
                         .Select(type => type.ContainsGenericParameters ? type.MakeGenericType(typeof(T)) : type)))

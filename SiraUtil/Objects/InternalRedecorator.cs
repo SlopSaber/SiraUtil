@@ -92,7 +92,9 @@ namespace SiraUtil.Objects
 
         private static UnityEngine.Object PrefabInitializing(UnityEngine.Object originalPrefab, DiContainer container, string fieldName, Type mainType)
         {
-            IEnumerable<RedecoratorRegistration> registrations = container.AncestorContainers[0].Resolve<List<RedecoratorRegistration>>().Where(rr => rr.ContainerType == mainType && rr.Contract == fieldName).OrderByDescending(rr => rr.Priority);
+            SiraUtil.Zenject.Internal.OwnedInstructionOrder<RedecoratorRegistration>.FirstCapture? forecast =
+                SiraUtil.Zenject.Internal.OwnedInstructionOrder<RedecoratorRegistration>.CreateFirstCapture();
+            IEnumerable<RedecoratorRegistration> registrations = container.AncestorContainers[0].Resolve<List<RedecoratorRegistration>>().Where(rr => rr.ContainerType == mainType && rr.Contract == fieldName).OrderByDescending(rr => SiraUtil.Zenject.Internal.OwnedInstructionOrder<RedecoratorRegistration>.ObserveFirstKey(forecast, rr.Priority));
 
             if (!registrations.Any())
             {
@@ -102,7 +104,10 @@ namespace SiraUtil.Objects
             GameObject irgo = new(nameof(InternalRedecorator));
             irgo.SetActive(false);
             UnityEngine.Object.Instantiate(originalPrefab, irgo.transform);
-            UnityEngine.Object clone = irgo.GetComponentInChildren(registrations.First().PrefabType);
+            SiraUtil.Zenject.Internal.OwnedInstructionOrder<RedecoratorRegistration>.BeginFirstCapture(forecast);
+            RedecoratorRegistration first = registrations.First();
+            SiraUtil.Zenject.Internal.OwnedInstructionOrder<RedecoratorRegistration>.CompleteFirstCapture(forecast);
+            UnityEngine.Object clone = irgo.GetComponentInChildren(first.PrefabType);
 
             foreach (RedecoratorRegistration registration in SiraUtil.Zenject.Internal.OwnedInstructionOrder<RedecoratorRegistration>.Enumerate(registrations))
             {
