@@ -79,43 +79,7 @@ namespace SiraUtil.Zenject.Internal
                 {
                     return;
                 }
-                IntPtr sourceImage = Marshal.ReadIntPtr(klass, 0x40);
-                if (sourceImage == IntPtr.Zero || (Marshal.ReadByte(sourceImage, 0x1c) & 1) != 0)
-                {
-                    return;
-                }
-                IntPtr table = IntPtr.Add(sourceImage, 0x1b0);
-                int rows = Marshal.ReadInt32(table, 8) & 0xffffff;
-                int types = Marshal.ReadInt32(sourceImage, 0x118) & 0xffffff;
-                int stride = Marshal.ReadByte(table, 11);
-                int flags = Marshal.ReadInt32(table, 12);
-                int parentWidth = (flags & 3) + 1;
-                int typeWidth = ((flags >> 2) & 3) + 1;
-                int blobWidth = ((flags >> 4) & 3) + 1;
-                if (rows < 256 || rows > MaximumRows || types < 256 || types > MaximumRows ||
-                    (flags >> 24) != 3 || parentWidth is not (2 or 4) || typeWidth is not (2 or 4) ||
-                    blobWidth is not (2 or 4) || stride != parentWidth + typeWidth + blobWidth)
-                {
-                    return;
-                }
-                IntPtr data = Marshal.ReadIntPtr(table);
-                int length = checked(rows * stride);
-                if (data == IntPtr.Zero || !Readable(data, length))
-                {
-                    return;
-                }
-                byte[] copy = new byte[length];
-                bool[] output = new bool[types + 1];
-                // No borrowed metadata pointer escapes the synchronous owner copy.
-                Marshal.Copy(data, copy, 0, copy.Length);
-                GC.KeepAlive(type);
-                GC.KeepAlive(assembly);
-                image = sourceImage;
-                started = true;
-                pending = Task.Factory.StartNew(Decode, new Input(copy, output, rows, stride, parentWidth),
-                    CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
-                _ = pending.ContinueWith(ObserveFault, CancellationToken.None,
-                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                StartSnapshot(Marshal.ReadIntPtr(klass, 0x40), type);
             }
             catch (ThreadInterruptedException)
             {
@@ -126,6 +90,46 @@ namespace SiraUtil.Zenject.Internal
             {
                 disabled = true;
             }
+        }
+
+        private void StartSnapshot(IntPtr sourceImage, object witness)
+        {
+            if (sourceImage == IntPtr.Zero || (Marshal.ReadByte(sourceImage, 0x1c) & 1) != 0)
+            {
+                return;
+            }
+            IntPtr table = IntPtr.Add(sourceImage, 0x1b0);
+            int rows = Marshal.ReadInt32(table, 8) & 0xffffff;
+            int types = Marshal.ReadInt32(sourceImage, 0x118) & 0xffffff;
+            int stride = Marshal.ReadByte(table, 11);
+            int flags = Marshal.ReadInt32(table, 12);
+            int parentWidth = (flags & 3) + 1;
+            int typeWidth = ((flags >> 2) & 3) + 1;
+            int blobWidth = ((flags >> 4) & 3) + 1;
+            if (rows < 256 || rows > MaximumRows || types < 256 || types > MaximumRows ||
+                (flags >> 24) != 3 || parentWidth is not (2 or 4) || typeWidth is not (2 or 4) ||
+                blobWidth is not (2 or 4) || stride != parentWidth + typeWidth + blobWidth)
+            {
+                return;
+            }
+            IntPtr data = Marshal.ReadIntPtr(table);
+            int length = checked(rows * stride);
+            if (data == IntPtr.Zero || !Readable(data, length))
+            {
+                return;
+            }
+            byte[] copy = new byte[length];
+            bool[] output = new bool[types + 1];
+            // No borrowed metadata pointer escapes the synchronous owner copy.
+            Marshal.Copy(data, copy, 0, copy.Length);
+            GC.KeepAlive(witness);
+            GC.KeepAlive(assembly);
+            image = sourceImage;
+            started = true;
+            pending = Task.Factory.StartNew(Decode, new Input(copy, output, rows, stride, parentWidth),
+                CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            _ = pending.ContinueWith(ObserveFault, CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         }
 
         private static bool[] Decode(object? state)
