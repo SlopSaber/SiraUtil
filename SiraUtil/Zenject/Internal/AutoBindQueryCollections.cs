@@ -160,7 +160,7 @@ namespace SiraUtil.Zenject.Internal
             {
                 Queue();
                 Task<Batch>? request = pending;
-                if (request == null)
+                if (request == null || !request.IsCompleted)
                 {
                     return false;
                 }
