@@ -99,11 +99,12 @@ namespace SiraUtil.Zenject.Internal
                     return;
                 }
                 IntPtr data = Marshal.ReadIntPtr(table);
-                if (data == IntPtr.Zero)
+                int length = checked(rows * stride);
+                if (data == IntPtr.Zero || !Readable(data, length))
                 {
                     return;
                 }
-                byte[] copy = new byte[checked(rows * stride)];
+                byte[] copy = new byte[length];
                 bool[] output = new bool[types + 1];
                 // No borrowed metadata pointer escapes the synchronous owner copy.
                 Marshal.Copy(data, copy, 0, copy.Length);
@@ -148,6 +149,39 @@ namespace SiraUtil.Zenject.Internal
         }
 
         private static void ObserveFault(Task<bool[]> task) => _ = task.Exception;
+
+        private static bool Readable(IntPtr address, int length)
+        {
+            ulong cursor = unchecked((ulong)address.ToInt64());
+            ulong end = checked(cursor + (uint)length);
+            while (cursor < end)
+            {
+                if (VirtualQuery(new IntPtr(unchecked((long)cursor)), out MemoryRegion region, new UIntPtr(48)).ToUInt64() != 48 ||
+                    region.State != 0x1000 || (region.Protect & 0x100) != 0 || (region.Protect & 0xee) == 0)
+                {
+                    return false;
+                }
+                ulong next = checked(unchecked((ulong)region.BaseAddress.ToInt64()) + region.RegionSize.ToUInt64());
+                if (next <= cursor)
+                {
+                    return false;
+                }
+                cursor = next;
+            }
+            return true;
+        }
+
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        private static extern UIntPtr VirtualQuery(IntPtr address, out MemoryRegion region, UIntPtr length);
+
+        [StructLayout(LayoutKind.Explicit, Size = 48)]
+        private struct MemoryRegion
+        {
+            [FieldOffset(0)] internal IntPtr BaseAddress;
+            [FieldOffset(24)] internal UIntPtr RegionSize;
+            [FieldOffset(32)] internal uint State;
+            [FieldOffset(36)] internal uint Protect;
+        }
 
         public void Dispose()
         {

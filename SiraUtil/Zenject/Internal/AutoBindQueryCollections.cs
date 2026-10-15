@@ -72,7 +72,9 @@ namespace SiraUtil.Zenject.Internal
             bool qualified = scope?.rows != null && schema.Unpatched();
             if (qualified && scope!.rows!.IsNegative(provider, attributeType, pseudo))
             {
+#pragma warning disable IDE0300 // The native query returns a distinct empty array for every call.
                 return new Attribute[0];
+#pragma warning restore IDE0300
             }
             Attribute[] result = schema.NativeOriginal!(provider, attributeType, pseudo);
             if (qualified && result != null && schema.Unpatched())
