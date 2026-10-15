@@ -413,7 +413,11 @@ namespace SiraUtil.Zenject.Internal
                     case sbyte number: generator.Emit(opcode, number); break;
                     case short number: generator.Emit(opcode, number); break;
                     case int number:
-                        if (opcode.OperandType == OperandType.ShortInlineVar)
+                        if (opcode.OperandType == OperandType.ShortInlineI)
+                        {
+                            generator.Emit(opcode, checked((sbyte)number));
+                        }
+                        else if (opcode.OperandType == OperandType.ShortInlineVar)
                         {
                             generator.Emit(opcode, (byte)number);
                         }
