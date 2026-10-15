@@ -108,6 +108,7 @@ namespace SiraUtil.Sabers.Effects
                         }
                         if (distance < 0.08f && saberA.isActiveAndEnabled && saberB.isActiveAndEnabled)
                         {
+                            pairBatch?.Dispose();
                             if (_lastSaberA == null && _lastSaberB == null)
                             {
                                 _lastSaberA = saberA;
@@ -128,6 +129,7 @@ namespace SiraUtil.Sabers.Effects
                     }
                 }
             }
+            pairBatch?.Dispose();
             clashingPoint = localClashingPoint;
             return sabersAreClashing;
         }
