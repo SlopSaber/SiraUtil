@@ -1,4 +1,5 @@
 ﻿using HarmonyLib;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -69,6 +70,7 @@ namespace SiraUtil.Sabers.Effects
 
         private static FromBinderGeneric<SiraSaberClashChecker> ClashAttacher(ConcreteIdBinderGeneric<SaberClashChecker> contract)
         {
+            contract.BindInfo.ContractTypes.Add(typeof(IDisposable));
             return contract.To<SiraSaberClashChecker>();
         }
     }
