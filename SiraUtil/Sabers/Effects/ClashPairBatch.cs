@@ -16,25 +16,31 @@ namespace SiraUtil.Sabers.Effects
         private static readonly Lazy<Schema?> shared = new(CreateSchema);
         private readonly Schema schema;
         private Saber[] identities;
-        private readonly Work work;
-        private readonly Task task;
+        private Work work;
+        private Task task;
 
         private ClashPairBatch(Schema schema, Saber[] identities, Endpoint[] endpoints)
         {
             this.schema = schema;
             this.identities = identities;
-            work = new(endpoints, schema.Distance);
-            task = Task.Factory.StartNew(static state => ((Work)state!).Run(), work,
+            work = new(endpoints, schema.Distance, 1, 0);
+            task = Queue(work);
+        }
+
+        private static Task Queue(Work work)
+        {
+            Task task = Task.Factory.StartNew(static state => ((Work)state!).Run(), work,
                 CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
             _ = task.ContinueWith(static completed => _ = completed.Exception, CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            return task;
         }
 
         internal bool IsCompleted => task.IsCompleted;
 
         internal static ClashPairBatch? Start(List<Saber> sabers)
         {
-            if (sabers.Count is < 64 or > 512)
+            if (sabers.Count < 64)
             {
                 return null;
             }
@@ -75,15 +81,31 @@ namespace SiraUtil.Sabers.Effects
             point = default;
             try
             {
-                int index = (a * (a - 1) / 2) + b;
-                if (Volatile.Read(ref work.Stop) != 0 || a >= identities.Length || b >= a ||
-                    index >= Volatile.Read(ref work.Completed) ||
+                if (a >= identities.Length || b >= a)
+                {
+                    return false;
+                }
+                long pair = ((long)a * (a - 1) / 2) + b;
+                if (pair >= work.Offset + work.Distances.Length)
+                {
+                    Volatile.Write(ref work.Stop, 1);
+                    if (!task.IsCompleted)
+                    {
+                        return false;
+                    }
+                    work = new(work.Endpoints, schema.Distance, a, b);
+                    task = Queue(work);
+                }
+                long relative = pair - work.Offset;
+                if (Volatile.Read(ref work.Stop) != 0 || relative < 0 ||
+                    relative >= Volatile.Read(ref work.Completed) ||
                     !ReferenceEquals(identities[a], saberA) || !ReferenceEquals(identities[b], saberB) ||
                     !work.Endpoints[a].Matches(bottomA, topA) || !work.Endpoints[b].Matches(bottomB, topB) ||
                     !schema.Unpatched())
                 {
                     return false;
                 }
+                int index = (int)relative;
                 distance = work.Distances[index];
                 point = work.Points[index];
                 return true;
@@ -151,12 +173,17 @@ namespace SiraUtil.Sabers.Effects
             internal readonly Vector3[] Points;
             internal int Completed, Stop;
             private readonly DistanceFunction distance;
+            internal readonly long Offset;
+            private readonly int firstA, firstB;
 
-            internal Work(Endpoint[] endpoints, DistanceFunction distance)
+            internal Work(Endpoint[] endpoints, DistanceFunction distance, int firstA, int firstB)
             {
                 Endpoints = endpoints;
                 this.distance = distance;
-                int count = endpoints.Length * (endpoints.Length - 1) / 2;
+                this.firstA = firstA;
+                this.firstB = firstB;
+                Offset = ((long)firstA * (firstA - 1) / 2) + firstB;
+                int count = (int)Math.Min(2048, ((long)endpoints.Length * (endpoints.Length - 1) / 2) - Offset);
                 Distances = new float[count];
                 Points = new Vector3[count];
             }
@@ -164,10 +191,15 @@ namespace SiraUtil.Sabers.Effects
             internal void Run()
             {
                 int index = 0;
-                for (int a = 1; a < Endpoints.Length; a++)
+                for (int a = firstA; a < Endpoints.Length; a++)
                 {
-                    for (int b = 0; b < a; b++)
+                    for (int b = a == firstA ? firstB : 0; b < a; b++)
                     {
+                        if (index == Distances.Length)
+                        {
+                            Volatile.Write(ref Completed, index);
+                            return;
+                        }
                         if ((index & 31) == 0 && Volatile.Read(ref Stop) != 0)
                         {
                             return;
