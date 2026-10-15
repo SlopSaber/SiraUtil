@@ -366,8 +366,9 @@ namespace SiraUtil.Zenject
 
             _autoBinded = true;
             Assembly assembly = Metadata.Assembly;
+            using AutoBindQueryRows? rows = AutoBindQueryCollections.PrepareRows(assembly);
             Type[] types = assembly.GetTypes();
-            using AutoBindQueryCollections? preparation = AutoBindQueryCollections.Enter(types.Length, assembly);
+            using AutoBindQueryCollections? preparation = AutoBindQueryCollections.Enter(types.Length, assembly, rows);
             foreach (Type? type in types)
             {
                 BindAttribute? bind = AutoBindQueryCollections.Query(type);

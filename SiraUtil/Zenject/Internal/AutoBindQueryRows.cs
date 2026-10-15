@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,6 +17,24 @@ namespace SiraUtil.Zenject.Internal
         private bool[]? present;
         private IntPtr image;
         private bool started, disabled;
+
+        internal bool Prepare()
+        {
+            try
+            {
+                StartSnapshot(layout.AssemblyImage(assembly), assembly);
+                return started;
+            }
+            catch (ThreadInterruptedException)
+            {
+                Thread.CurrentThread.Interrupt();
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
 
         internal bool IsNegative(ICustomAttributeProvider provider, Type attributeType, bool pseudo)
         {
@@ -206,6 +225,7 @@ namespace SiraUtil.Zenject.Internal
             internal readonly Type RuntimeType;
             internal readonly MethodBase[] Guards;
             private readonly IntPtr attributeClass;
+            private readonly Func<Assembly, IntPtr> assemblyHandle;
 
             private Layout(Type runtimeType)
             {
@@ -250,6 +270,9 @@ namespace SiraUtil.Zenject.Internal
                     !Matches(IntPtr.Add(address, 0xba951), "488b0b488bc14883c4205bc3") ||
                     !Matches(IntPtr.Add(address, 0xc1120), "488b4140c3") ||
                     !Matches(IntPtr.Add(address, 0xc11f0), "8b4158c3") ||
+                    !Matches(IntPtr.Add(address, 0xb56a0), "488b4160c3") ||
+                    !Matches(IntPtr.Add(address, 0x109874), "488b6910") ||
+                    !Matches(IntPtr.Add(address, 0x109880), "40387572") ||
                     !Matches(IntPtr.Add(address, 0x14d470), "0fb6411c83e001c3") ||
                     !Matches(IntPtr.Add(address, 0x14d410), "83fa37770f4863c24883c00f48c1e0044803c1c333c0c3") ||
                     !Matches(IntPtr.Add(address, 0x14d450), "8b410825ffffff00c3") ||
@@ -259,6 +282,20 @@ namespace SiraUtil.Zenject.Internal
                 {
                     throw new NotSupportedException();
                 }
+                Type assemblyType = typeof(Attribute).Assembly.GetType();
+                FieldInfo field = assemblyType.GetField("_mono_assembly", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                if (field.DeclaringType != assemblyType || field.FieldType != typeof(IntPtr) || field.IsStatic)
+                {
+                    throw new NotSupportedException();
+                }
+                DynamicMethod getter = new("SiraAssemblyHandle", typeof(IntPtr), [typeof(Assembly)],
+                    typeof(AutoBindQueryRows).Module, true);
+                ILGenerator generator = getter.GetILGenerator();
+                generator.Emit(OpCodes.Ldarg_0);
+                generator.Emit(OpCodes.Castclass, assemblyType);
+                generator.Emit(OpCodes.Ldfld, field);
+                generator.Emit(OpCodes.Ret);
+                assemblyHandle = (Func<Assembly, IntPtr>)getter.CreateDelegate(typeof(Func<Assembly, IntPtr>));
                 attributeClass = Class(typeof(BindAttribute));
                 if (attributeClass == IntPtr.Zero)
                 {
@@ -291,6 +328,13 @@ namespace SiraUtil.Zenject.Internal
             // Recheck both native flags; earlier initialization does not rule out a later failure.
             internal bool AttributeReady() => (Marshal.ReadByte(attributeClass, 0x20) & 1) != 0 &&
                 (Marshal.ReadInt32(attributeClass, 0x28) & 0x100000) == 0;
+
+            internal IntPtr AssemblyImage(Assembly assembly)
+            {
+                IntPtr handle = assemblyHandle(assembly);
+                return handle == IntPtr.Zero || Marshal.ReadByte(handle, 0x72) != 0
+                    ? IntPtr.Zero : Marshal.ReadIntPtr(handle, 0x60);
+            }
 
             internal static IntPtr Class(Type type)
             {

@@ -18,6 +18,7 @@ namespace SiraUtil.Zenject.Internal
         [ThreadStatic] private static AutoBindQueryCollections? current;
         private readonly Schema schema;
         private readonly AutoBindQueryRows? rows;
+        private readonly bool ownsRows;
         private readonly AutoBindQueryCollections? parent;
         private int remaining;
         private bool listReady, dictionaryReady, disabled;
@@ -25,24 +26,53 @@ namespace SiraUtil.Zenject.Internal
         private Batch? prepared;
         private int listIndex, dictionaryIndex;
 
-        private AutoBindQueryCollections(Schema schema, int count, Assembly assembly)
+        private AutoBindQueryCollections(Schema schema, int count, Assembly assembly, AutoBindQueryRows? preparedRows)
         {
             this.schema = schema;
-            rows = schema.Native != null && assembly.GetType() == typeof(Attribute).Assembly.GetType()
-                ? new(schema.Native, assembly) : null;
+            ownsRows = preparedRows == null;
+            rows = preparedRows ?? (schema.Native != null && assembly.GetType() == typeof(Attribute).Assembly.GetType()
+                ? new(schema.Native, assembly) : null);
             remaining = count;
             parent = current;
             current = this;
         }
 
-        internal static AutoBindQueryCollections? Enter(int count, Assembly assembly)
+        internal static AutoBindQueryRows? PrepareRows(Assembly assembly)
+        {
+            try
+            {
+                Schema? schema = shared.Value;
+                if (schema?.Native == null || !schema.Unpatched() || assembly.GetType() != typeof(Attribute).Assembly.GetType())
+                {
+                    return null;
+                }
+                AutoBindQueryRows rows = new(schema.Native, assembly);
+                if (rows.Prepare())
+                {
+                    return rows;
+                }
+                rows.Dispose();
+                return null;
+            }
+            catch (ThreadInterruptedException)
+            {
+                Thread.CurrentThread.Interrupt();
+                return null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        internal static AutoBindQueryCollections? Enter(int count, Assembly assembly, AutoBindQueryRows? preparedRows)
         {
             if (count < 256)
             {
                 return null;
             }
             Schema? schema = shared.Value;
-            return schema != null && schema.Unpatched() ? new(schema, count, assembly) : null;
+            return schema != null && schema.Unpatched() ? new(schema, count, assembly, preparedRows) : null;
         }
 
         internal static BindAttribute? Query(Type? type)
@@ -216,7 +246,10 @@ namespace SiraUtil.Zenject.Internal
 
         public void Dispose()
         {
-            rows?.Dispose();
+            if (ownsRows)
+            {
+                rows?.Dispose();
+            }
             disabled = true;
             prepared = null;
             pending = null;
