@@ -45,11 +45,9 @@ namespace SiraUtil.Zenject.Internal
         internal static BindAttribute? Query(Type? type)
         {
             AutoBindQueryCollections? scope = current;
-            if (type is null || scope == null || type.GetType() != scope.schema.RuntimeType || !scope.schema.Unpatched())
-            {
-                return type!.GetCustomAttribute<BindAttribute>();
-            }
-            return (BindAttribute?)scope.schema.Query(type, typeof(BindAttribute), true);
+            return type is null || scope == null || type.GetType() != scope.schema.RuntimeType || !scope.schema.Unpatched()
+                ? type!.GetCustomAttribute<BindAttribute>()
+                : (BindAttribute?)scope.schema.Query(type, typeof(BindAttribute), true);
         }
 
         private static Schema? CreateSchema()
@@ -313,7 +311,7 @@ namespace SiraUtil.Zenject.Internal
                 }
             }
 
-            internal bool Unpatched() => guards.All(method => Harmony.GetPatchInfo(method)?.Owners.Count is not > 0);
+            internal bool Unpatched() => guards.All(method => HarmonyLib.Harmony.GetPatchInfo(method)?.Owners.Count is not > 0);
 
             private static DynamicMethod Redirect(MethodInfo original, Type[] parameters, MethodInfo target, DynamicMethod replacement)
             {
@@ -334,9 +332,12 @@ namespace SiraUtil.Zenject.Internal
             {
                 MethodBody body = original.GetMethodBody()!;
                 DynamicMethod result = new("SiraQuery" + original.MetadataToken, original.ReturnType, parameters,
-                    typeof(AutoBindQueryCollections).Module, true) { InitLocals = body.InitLocals };
+                    typeof(AutoBindQueryCollections).Module, true)
+                {
+                    InitLocals = body.InitLocals
+                };
                 ILGenerator generator = result.GetILGenerator();
-                LocalBuilder[] locals = body.LocalVariables.Select(local => generator.DeclareLocal(local.LocalType, local.IsPinned)).ToArray();
+                LocalBuilder[] locals = [.. body.LocalVariables.Select(local => generator.DeclareLocal(local.LocalType, local.IsPinned))];
                 Dictionary<Label, Label> labels = [];
                 Label Map(Label label)
                 {
@@ -366,10 +367,20 @@ namespace SiraUtil.Zenject.Internal
 
             private static OpCode LongBranch(OpCode opcode) => opcode.Value switch
             {
-                0x2b => OpCodes.Br, 0x2c => OpCodes.Brfalse, 0x2d => OpCodes.Brtrue, 0x2e => OpCodes.Beq,
-                0x2f => OpCodes.Bge, 0x30 => OpCodes.Bgt, 0x31 => OpCodes.Ble, 0x32 => OpCodes.Blt,
-                0x33 => OpCodes.Bne_Un, 0x34 => OpCodes.Bge_Un, 0x35 => OpCodes.Bgt_Un,
-                0x36 => OpCodes.Ble_Un, 0x37 => OpCodes.Blt_Un, 0xde => OpCodes.Leave,
+                0x2b => OpCodes.Br,
+                0x2c => OpCodes.Brfalse,
+                0x2d => OpCodes.Brtrue,
+                0x2e => OpCodes.Beq,
+                0x2f => OpCodes.Bge,
+                0x30 => OpCodes.Bgt,
+                0x31 => OpCodes.Ble,
+                0x32 => OpCodes.Blt,
+                0x33 => OpCodes.Bne_Un,
+                0x34 => OpCodes.Bge_Un,
+                0x35 => OpCodes.Bgt_Un,
+                0x36 => OpCodes.Ble_Un,
+                0x37 => OpCodes.Blt_Un,
+                0xde => OpCodes.Leave,
                 _ => opcode
             };
 
@@ -379,13 +390,19 @@ namespace SiraUtil.Zenject.Internal
                 {
                     case null: generator.Emit(opcode); break;
                     case Label target: generator.Emit(opcode, label(target)); break;
-                    case Label[] targets: generator.Emit(opcode, targets.Select(label).ToArray()); break;
+                    case Label[] targets: generator.Emit(opcode, [.. targets.Select(label)]); break;
                     case LocalBuilder local: generator.Emit(opcode, locals[local.LocalIndex]); break;
                     case LocalVariableInfo local: generator.Emit(opcode, locals[local.LocalIndex]); break;
                     case ParameterInfo parameter:
                         int index = parameter.Position + (isStatic ? 0 : 1);
-                        if (opcode.OperandType == OperandType.ShortInlineVar) generator.Emit(opcode, (byte)index);
-                        else generator.Emit(opcode, (short)index);
+                        if (opcode.OperandType == OperandType.ShortInlineVar)
+                        {
+                            generator.Emit(opcode, (byte)index);
+                        }
+                        else
+                        {
+                            generator.Emit(opcode, (short)index);
+                        }
                         break;
                     case ConstructorInfo ctor: generator.Emit(opcode, ctor); break;
                     case MethodInfo method: generator.Emit(opcode, method); break;
@@ -396,9 +413,18 @@ namespace SiraUtil.Zenject.Internal
                     case sbyte number: generator.Emit(opcode, number); break;
                     case short number: generator.Emit(opcode, number); break;
                     case int number:
-                        if (opcode.OperandType == OperandType.ShortInlineVar) generator.Emit(opcode, (byte)number);
-                        else if (opcode.OperandType == OperandType.InlineVar) generator.Emit(opcode, (short)number);
-                        else generator.Emit(opcode, number);
+                        if (opcode.OperandType == OperandType.ShortInlineVar)
+                        {
+                            generator.Emit(opcode, (byte)number);
+                        }
+                        else if (opcode.OperandType == OperandType.InlineVar)
+                        {
+                            generator.Emit(opcode, (short)number);
+                        }
+                        else
+                        {
+                            generator.Emit(opcode, number);
+                        }
                         break;
                     case long number: generator.Emit(opcode, number); break;
                     case float number: generator.Emit(opcode, number); break;
