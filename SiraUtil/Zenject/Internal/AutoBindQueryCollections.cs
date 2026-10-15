@@ -17,6 +17,7 @@ namespace SiraUtil.Zenject.Internal
         private static readonly Lazy<Schema?> shared = new(CreateSchema);
         [ThreadStatic] private static AutoBindQueryCollections? current;
         private readonly Schema schema;
+        private readonly AutoBindQueryRows? rows;
         private readonly AutoBindQueryCollections? parent;
         private int remaining;
         private bool listReady, dictionaryReady, disabled;
@@ -24,22 +25,24 @@ namespace SiraUtil.Zenject.Internal
         private Batch? prepared;
         private int listIndex, dictionaryIndex;
 
-        private AutoBindQueryCollections(Schema schema, int count)
+        private AutoBindQueryCollections(Schema schema, int count, Assembly assembly)
         {
             this.schema = schema;
+            rows = schema.Native != null && assembly.GetType() == typeof(Attribute).Assembly.GetType()
+                ? new(schema.Native, assembly) : null;
             remaining = count;
             parent = current;
             current = this;
         }
 
-        internal static AutoBindQueryCollections? Enter(int count)
+        internal static AutoBindQueryCollections? Enter(int count, Assembly assembly)
         {
             if (count < 256)
             {
                 return null;
             }
             Schema? schema = shared.Value;
-            return schema != null && schema.Unpatched() ? new(schema, count) : null;
+            return schema != null && schema.Unpatched() ? new(schema, count, assembly) : null;
         }
 
         internal static BindAttribute? Query(Type? type)
@@ -60,6 +63,23 @@ namespace SiraUtil.Zenject.Internal
             {
                 return null;
             }
+        }
+
+        private static Attribute[] QueryNative(ICustomAttributeProvider provider, Type attributeType, bool pseudo)
+        {
+            AutoBindQueryCollections? scope = current;
+            Schema schema = scope?.schema ?? shared.Value ?? throw new NotSupportedException();
+            bool qualified = scope?.rows != null && schema.Unpatched();
+            if (qualified && scope!.rows!.IsNegative(provider, attributeType, pseudo))
+            {
+                return new Attribute[0];
+            }
+            Attribute[] result = schema.NativeOriginal!(provider, attributeType, pseudo);
+            if (qualified && result != null && schema.Unpatched())
+            {
+                scope!.rows!.Observe(provider, attributeType, pseudo);
+            }
+            return result!;
         }
 
         private static List<object> NewList(int capacity)
@@ -194,6 +214,7 @@ namespace SiraUtil.Zenject.Internal
 
         public void Dispose()
         {
+            rows?.Dispose();
             disabled = true;
             prepared = null;
             pending = null;
@@ -221,6 +242,8 @@ namespace SiraUtil.Zenject.Internal
             private const BindingFlags Members = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
             private readonly MethodBase[] guards;
             internal readonly Type RuntimeType;
+            internal readonly AutoBindQueryRows.Layout? Native;
+            internal readonly Func<ICustomAttributeProvider, Type, bool, Attribute[]>? NativeOriginal;
             internal readonly Func<int, object> Dictionary;
             internal readonly Func<MemberInfo, Type, bool, Attribute?> Query;
 
@@ -278,11 +301,48 @@ namespace SiraUtil.Zenject.Internal
                 {
                     throw new NotSupportedException();
                 }
+                Native = AutoBindQueryRows.Layout.TryCreate(RuntimeType, core);
+                MethodInfo? baseQuery = null;
+                DynamicMethod? baseCopy = null;
+                if (Native != null)
+                {
+                    Type[] nativeParameters = [typeof(ICustomAttributeProvider), typeof(Type), typeof(bool)];
+                    baseQuery = attributes.GetMethod("GetCustomAttributesBase", Members, null, nativeParameters, null)!;
+                    MethodInfo native = attributes.GetMethod("GetCustomAttributesInternal", Members, null, nativeParameters, null)!;
+                    if (baseQuery.GetMethodBody()!.ExceptionHandlingClauses.Count != 0 ||
+                        baseQuery.ReturnType != typeof(object[]) || native.ReturnType != typeof(Attribute[]))
+                    {
+                        throw new NotSupportedException();
+                    }
+                    guards = [.. guards, .. Native.Guards, baseQuery, native];
+                    if (!Unpatched())
+                    {
+                        throw new NotSupportedException();
+                    }
+                    DynamicMethod originalNative = new("SiraOriginalQueryAttributes", typeof(Attribute[]), nativeParameters,
+                        typeof(AutoBindQueryCollections).Module, true);
+                    ILGenerator nativeGenerator = originalNative.GetILGenerator();
+                    nativeGenerator.Emit(OpCodes.Ldarg_0);
+                    nativeGenerator.Emit(OpCodes.Ldarg_1);
+                    nativeGenerator.Emit(OpCodes.Ldarg_2);
+                    nativeGenerator.Emit(OpCodes.Call, native);
+                    nativeGenerator.Emit(OpCodes.Ret);
+                    NativeOriginal = (Func<ICustomAttributeProvider, Type, bool, Attribute[]>)originalNative.CreateDelegate(
+                        typeof(Func<ICustomAttributeProvider, Type, bool, Attribute[]>));
+                    baseCopy = Redirect(baseQuery, nativeParameters, native,
+                        typeof(AutoBindQueryCollections).GetMethod(nameof(QueryNative), Members)!);
+                }
                 MethodInfo listFactory = typeof(AutoBindQueryCollections).GetMethod(nameof(NewList), Members)!;
                 MethodInfo dictionaryFactory = typeof(AutoBindQueryCollections).GetMethod(nameof(NewDictionary), Members)!;
                 int collections = 0;
+                int nativeRoutes = 0;
                 DynamicMethod monoCopy = Copy(mono, [typeof(ICustomAttributeProvider), typeof(Type), typeof(bool)], instruction =>
                 {
+                    if (baseCopy != null && instruction.opcode == OpCodes.Call && Equals(instruction.operand, baseQuery))
+                    {
+                        nativeRoutes++;
+                        return [new(OpCodes.Call, baseCopy)];
+                    }
                     if (instruction.opcode == OpCodes.Newobj && Equals(instruction.operand, dictionary))
                     {
                         collections++;
@@ -296,7 +356,7 @@ namespace SiraUtil.Zenject.Internal
                     }
                     return [instruction];
                 });
-                if (collections != 3)
+                if (collections != 3 || (baseCopy != null && nativeRoutes != 2))
                 {
                     throw new NotSupportedException();
                 }
@@ -313,7 +373,7 @@ namespace SiraUtil.Zenject.Internal
 
             internal bool Unpatched() => guards.All(method => HarmonyLib.Harmony.GetPatchInfo(method)?.Owners.Count is not > 0);
 
-            private static DynamicMethod Redirect(MethodInfo original, Type[] parameters, MethodInfo target, DynamicMethod replacement)
+            private static DynamicMethod Redirect(MethodInfo original, Type[] parameters, MethodInfo target, MethodInfo replacement)
             {
                 int count = 0;
                 DynamicMethod result = Copy(original, parameters, instruction =>
