@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace SiraUtil.Zenject.Internal
 {
-    internal sealed class AutoBindQueryRows(Layout layout, Assembly assembly) : IDisposable
+    internal sealed class AutoBindQueryRows(AutoBindQueryRows.Layout layout, Assembly assembly) : IDisposable
     {
         private const int MaximumRows = 131072;
         private Task<bool[]>? pending;
