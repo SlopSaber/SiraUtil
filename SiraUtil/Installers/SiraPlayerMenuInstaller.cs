@@ -3,7 +3,7 @@ using Zenject;
 
 namespace SiraUtil.Installers
 {
-    internal class SiraAllPlayersFPFCInstaller : Installer
+    internal class SiraPlayerMenuInstaller : Installer
     {
         public override void InstallBindings()
         {

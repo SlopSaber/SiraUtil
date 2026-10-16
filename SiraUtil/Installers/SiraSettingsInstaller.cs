@@ -1,8 +1,3 @@
-﻿using SiraUtil.Tools.FPFC;
-using System;
-using System.Linq;
-using BGLib.AppFlow.Initialization;
-using UnityEngine;
 using Zenject;
 
 namespace SiraUtil.Installers
@@ -18,28 +13,7 @@ namespace SiraUtil.Installers
 
         public override void InstallBindings()
         {
-            Container.BindInstance(_config.FPFCToggle).AsSingle();
             Container.BindInstance(_config.SongControl).AsSingle();
-
-            string[] args = Environment.GetCommandLineArgs();
-            bool fpfcEnabled = args.Any(a => a.Equals(FPFCToggle.EnableArgument, StringComparison.OrdinalIgnoreCase));
-            if (Application.isEditor)
-            {
-                // The exported game supplies -fpfc through this provider when
-                // Unity Hub opens the project without a process-level FPFC flag.
-                fpfcEnabled |= CustomizableEnvironmentCommandLineArgsProvider.GetCommandLineArgs()
-                    .Any(a => a.Equals("-fpfc", StringComparison.OrdinalIgnoreCase));
-            }
-
-            if (fpfcEnabled && !args.Any(a => a.Equals(FPFCToggle.DisableArgument, StringComparison.OrdinalIgnoreCase)))
-            {
-                Container.BindInterfacesTo<FPFCSettingsController>().AsSingle();
-                Container.BindInterfacesTo<FPFCAffinityDaemon>().AsSingle().NonLazy();
-            }
-            else
-            {
-                Container.Bind<IFPFCSettings>().To<NoFPFCSettings>().AsSingle();
-            }
         }
     }
 }

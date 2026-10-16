@@ -9,7 +9,7 @@ using UnityEngine.XR.Management;
 namespace SiraUtil.Tweaks
 {
     /// <summary>
-    /// This patch prevents <see cref="UnityXRHelper.Start"/> from throwing an exception when no <see cref="XRInputSubsystem"/> is available (e.g. when in FPFC with no <see cref="XRLoader"/> actively loaded).
+    /// This patch prevents <see cref="UnityXRHelper.Start"/> from throwing an exception when no <see cref="XRInputSubsystem"/> is available.
     /// </summary>
     [HarmonyPatch(typeof(UnityXRHelper), nameof(UnityXRHelper.Start))]
     internal static class UnityXRHelperExceptionFixer
