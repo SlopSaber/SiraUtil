@@ -1,10 +1,11 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Microsoft.NET.Sdk">
+<Project>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
     <PropertyGroup>
-        <BeatSaberDir>D:\BSManager\BSInstances\1.45.2</BeatSaberDir>
+        <BeatSaberDir>D:\BSManager\BSInstances\1.45.3</BeatSaberDir>
         <ImportBSMTTargets>true</ImportBSMTTargets>
         <BSMTProjectType>BSIPA</BSMTProjectType>
-        <GameDirectory>D:\BSManager\BSInstances\1.45.2</GameDirectory>
+        <GameDirectory>D:\BSManager\BSInstances\1.45.3</GameDirectory>
         <GenerateManifest>true</GenerateManifest>
         <PluginId>SiraUtil</PluginId>
         <PluginName>SiraUtil</PluginName>
@@ -34,7 +35,7 @@
         <Authors>Auros</Authors>
         <Version>3.4.0</Version>
         <Description>A powerful utility mod which provides more tools to Beat Saber modders.</Description>
-        <GameVersion>1.45.2</GameVersion>
+        <GameVersion>1.45.3</GameVersion>
         <Icon>SiraUtil.Resources.logo.png</Icon>
     </PropertyGroup>
 
@@ -125,4 +126,6 @@
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
     </ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+  <Import Project="..\BSIPA.Layout.targets" Condition="Exists('$(GameDirectory)\IPA\Data\Managed\IPA.Loader.dll') OR Exists('$(BeatSaberDir)\IPA\Data\Managed\IPA.Loader.dll')" />
 </Project>
