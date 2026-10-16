@@ -43,6 +43,10 @@
         <HintPath>$(_BSIPACoreLibraries)\%(Reference._BSIPAFile)</HintPath>
         <Private>false</Private>
       </Reference>
+      <Reference Update="@(Reference)" Condition="Exists('$(_BSIPARoot)\Beat Saber_Data\Managed\%(Reference._BSIPAFile)')">
+        <HintPath>$(_BSIPARoot)\Beat Saber_Data\Managed\%(Reference._BSIPAFile)</HintPath>
+        <Private>false</Private>
+      </Reference>
       <Reference Update="@(Reference)" Condition="Exists('$(_BSIPAMods)\Libraries\%(Reference._BSIPAFile)')">
         <HintPath>$(_BSIPAMods)\Libraries\%(Reference._BSIPAFile)</HintPath>
         <Private>false</Private>
