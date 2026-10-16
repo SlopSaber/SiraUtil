@@ -16,6 +16,7 @@
     <DisableCopyToPlugins>true</DisableCopyToPlugins>
     <EnableReleaseCopy>false</EnableReleaseCopy>
     <CopyPDB>false</CopyPDB>
+    <DefineConstants Condition="'$(GameVersion)' == '1.45.3'">$(DefineConstants);BEAT_SABER_1453</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
