@@ -26,14 +26,14 @@
   </ItemGroup>
   <PropertyGroup>
     <ReferencePath>$(_BSIPAPending);$(_BSIPAPending)\Core;$(_BSIPAPending)\Libraries;$(_BSIPALoader);$(_BSIPACoreLibraries);$(_BSIPAMods);$(_BSIPAMods)\Core;$(_BSIPAMods)\Libraries;@(_BSIPALayoutDirectory);$(ReferencePath)</ReferencePath>
-    <AssemblySearchPaths>$(ReferencePath);$(AssemblySearchPaths)</AssemblySearchPaths>
+    <AssemblySearchPaths>{HintPathFromItem};$(_BSIPARoot)\Beat Saber_Data\Managed;$(ReferencePath);$(AssemblySearchPaths)</AssemblySearchPaths>
   </PropertyGroup>
 
   <Target Name="BSIPA_ResolveLayoutReferences" BeforeTargets="ResolveAssemblyReferences">
     <ItemGroup>
       <Reference Update="@(Reference)">
         <_BSIPAFile Condition="'%(Reference.HintPath)' != ''">$([System.IO.Path]::GetFileName('%(Reference.HintPath)'))</_BSIPAFile>
-        <_BSIPAFile Condition="'%(Reference.HintPath)' == ''">%(Reference.Filename).dll</_BSIPAFile>
+        <_BSIPAFile Condition="'%(Reference.HintPath)' == ''">%(Reference.Identity).dll</_BSIPAFile>
       </Reference>
       <Reference Update="@(Reference)" Condition="Exists('$(_BSIPALoader)\%(Reference._BSIPAFile)')">
         <HintPath>$(_BSIPALoader)\%(Reference._BSIPAFile)</HintPath>
