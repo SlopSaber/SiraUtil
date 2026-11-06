@@ -255,9 +255,41 @@ namespace SiraUtil.Affinity.Harmony.Generator
 
         public void Dispose()
         {
+            HashSet<MethodInfo> contracts = [.. _patchCache.Keys];
+            foreach (MethodBase original in _patchCache.Values.Select(contract => contract.Item1).Distinct())
+            {
+                HarmonyLib.Patches? info = HarmonyLib.Harmony.GetPatchInfo(original);
+                if (info is null)
+                {
+                    continue;
+                }
+
+                Patch[] owned = [.. info.Prefixes.Concat(info.Postfixes).Concat(info.Transpilers)
+                    .Concat(info.Finalizers).Concat(info.ILManipulators).Where(patch => patch.owner == _id)];
+                if (owned.Length == 0)
+                {
+                    continue;
+                }
+
+                // Removing a patch rebuilds the target. Remove this owner's contracts together,
+                // unless another live generator shares its owner ID on the same target.
+                if (owned.All(patch => contracts.Contains(patch.PatchMethod)))
+                {
+                    _harmony.Unpatch(original, HarmonyPatchType.All, _id);
+                }
+                else
+                {
+                    foreach (KeyValuePair<MethodInfo, (MethodBase, FieldInfo)> contract in _patchCache)
+                    {
+                        if (contract.Value.Item1.Equals(original))
+                        {
+                            _harmony.Unpatch(original, contract.Key);
+                        }
+                    }
+                }
+            }
             foreach (KeyValuePair<MethodInfo, (MethodBase, FieldInfo)> contract in _patchCache)
             {
-                _harmony.Unpatch(contract.Value.Item1, contract.Key);
                 contract.Value.Item2.SetValue(null, null);
             }
             _patchCache.Clear();
